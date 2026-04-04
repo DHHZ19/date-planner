@@ -1,37 +1,39 @@
 /// <reference types="google.maps" />
 
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { QuestionInputs } from '#/components/QuestionInputs'
 import { createServerFn } from '@tanstack/react-start'
-import { useState } from 'react'
 import z from 'zod'
+import type {
+  AnswerKey,
+  DateTimeOption,
+  GoogleSearchTextResponse,
+  NearbyPlace,
+  NearbyPlacesResponse,
+  QuestionSection,
+  SearchState,
+} from '../types/index-route.types'
 
-type NearbySearchResponse = {
-  places?: Array<{
-    id?: string
-    displayName?: {
-      text?: string
-    }
-  }>
-}
+export const dateTimeSchema = z.enum(['Morning', 'Afternoon', 'Now', 'Anytime'])
 
-type PlaceSummary = {
-  id?: google.maps.places.Place['id']
-  displayName?: google.maps.places.Place['displayName']
-}
-
-const getPlaces = createServerFn({ method: 'POST' })
+export const getPlaces = createServerFn({ method: 'POST' })
   .inputValidator(
-    (data: { latitude: number; longitude: number; search: string }) =>
+    (data: {
+      latitude: number
+      longitude: number
+      search: string
+      dateTime: DateTimeOption
+    }) =>
       z
         .object({
           latitude: z.number(),
           longitude: z.number(),
           search: z.string().min(1),
+          dateTime: dateTimeSchema,
         })
         .parse(data),
   )
   .handler(async ({ data }) => {
-    console.log('here3')
     try {
       const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
 
@@ -43,7 +45,7 @@ const getPlaces = createServerFn({ method: 'POST' })
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': apiKey,
             'X-Goog-FieldMask':
-              'places.id,places.displayName,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes',
+              'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes',
           },
           body: JSON.stringify({
             textQuery: `${data.search}`,
@@ -68,108 +70,68 @@ const getPlaces = createServerFn({ method: 'POST' })
         )
       }
 
-      const placesData = (await res.json()) as NearbySearchResponse
+      const placesData = (await res.json()) as GoogleSearchTextResponse
 
-      return placesData
+      const places: NearbyPlace[] = placesData.places ?? []
+
+      // weekdayDescriptions are Monday-first, but getDay() is Sunday-first.
+      const getWeekdayDescription = (place: NearbyPlace) => {
+        const descriptions =
+          place.currentOpeningHours?.weekdayDescriptions ?? []
+        if (descriptions.length === 0) return ''
+
+        const mondayFirstIndex = (new Date().getDay() + 6) % 7
+        return descriptions[mondayFirstIndex] ?? ''
+      }
+
+      const isOpenNow = (place: NearbyPlace) => {
+        return place.currentOpeningHours?.openNow === true
+      }
+
+      const isOpenDuringMorningHours = (place: NearbyPlace) => {
+        const descriptionOfDay = getWeekdayDescription(place)
+        return descriptionOfDay.includes('AM')
+      }
+
+      const isOpenDuringAfternoonHours = (place: NearbyPlace) => {
+        const descriptionOfDay = getWeekdayDescription(place)
+        return descriptionOfDay.includes('PM')
+      }
+
+      let validPlaces = places
+
+      switch (data.dateTime) {
+        case 'Morning':
+          validPlaces = places.filter((place) =>
+            isOpenDuringMorningHours(place),
+          )
+          break
+
+        case 'Afternoon':
+          validPlaces = places.filter((place) =>
+            isOpenDuringAfternoonHours(place),
+          )
+          break
+
+        case 'Now':
+          validPlaces = places.filter((place) => isOpenNow(place))
+          break
+
+        case 'Anytime':
+          validPlaces = places
+          break
+
+        default:
+          validPlaces = places
+      }
+
+      return validPlaces as unknown as NearbyPlacesResponse
     } catch (error) {
       console.error(error)
       throw error
     }
   })
-type Question = {
-  prompt: string
-  promptKey: AnswerKey
-}
 
-type QuestionSection = {
-  page: number
-  questions: Question[]
-}
-
-type AnswerKey =
-  | 'dateTime'
-  | 'startingArea'
-  | 'duration'
-  | 'activityTypes'
-  | 'activitySetting'
-  | 'dateVibe'
-  | 'food'
-
-type SearchState = {
-  step: number
-} & Partial<Record<AnswerKey, string>>
-
-type QuestionInputsProps = {
-  currentSection: QuestionSection
-}
-
-const QuestionInputs = ({ currentSection }: QuestionInputsProps) => {
-  const search = Route.useSearch()
-  const navigate = useNavigate()
-  const [places, setPlaces] = useState<PlaceSummary[]>([])
-
-  const fetchData = async (query: string) => {
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      const { latitude, longitude } = position.coords
-      const res = (await getPlaces({
-        data: { latitude, longitude, search: query },
-      })) as { places: PlaceSummary[] }
-
-      setPlaces(res.places)
-    })
-  }
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const food = search.food
-    const valid = z.string().min(1).safeParse(food)
-
-    if (!valid.success) {
-      console.error('not a string')
-    }
-
-    await fetchData(food)
-  }
-
-  return (
-    <>
-      {currentSection.questions.map((prompt) => (
-        <form onSubmit={handleSubmit}>
-          <li key={prompt.promptKey}>
-            <label>{prompt.prompt}</label>
-            <input
-              className="ml-2 rounded-lg border-2 border-pink-200 bg-pink-50/60 px-3 py-1.5 text-pink-900 placeholder:text-pink-300 outline-none ring-pink-300 transition focus:ring-2"
-              type="text"
-              placeholder={prompt.promptKey}
-              value={search[prompt.promptKey] ?? ''}
-              onChange={(e) => {
-                navigate({
-                  to: '.',
-                  search: (prev) => ({
-                    ...prev,
-                    [prompt.promptKey]: e.target.value,
-                  }),
-                  resetScroll: false,
-                })
-              }}
-            ></input>
-            <button
-              type="submit"
-              className="mt-3 inline-flex items-center rounded-xl bg-linear-to-r from-pink-500 to-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-pink-200 transition hover:from-pink-400 hover:to-rose-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-500 cursor-pointer"
-            >
-              Submit
-            </button>
-          </li>
-        </form>
-      ))}
-
-      {places.length > 0 &&
-        places.map((place) => (
-          <li key={`${place.id}`}>{place.displayName.text}</li>
-        ))}
-    </>
-  )
-}
 export const Route = createFileRoute('/')({
   validateSearch: (search: Record<string, unknown>) => {
     const parsedStep = Number(search.step)
@@ -192,8 +154,6 @@ export const Route = createFileRoute('/')({
 
 function App() {
   const search = Route.useSearch()
-  // next() and back() only update search.step
-  // each answer setter updates search immutably: navigate({ search: prev => ({ ...prev, timeOfDay: 'evening' }) })
 
   const questions: QuestionSection[] = [
     {
