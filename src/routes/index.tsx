@@ -17,6 +17,7 @@ export const Route = createFileRoute('/')({
     return {
       step: Number.isInteger(parsedStep) && parsedStep > 0 ? parsedStep : 1,
       dateTime: readString('dateTime'),
+      priceLevel: readString('priceLevel'),
       startingArea: readString('startingArea'),
       duration: readString('duration'),
       activityTypes: readString('activityTypes'),
@@ -42,6 +43,10 @@ function App() {
         {
           prompt: 'What kind of food are you feeling?',
           promptKey: 'food',
+        },
+        {
+          prompt: 'Price Level',
+          promptKey: 'priceLevel',
         },
       ],
     },
