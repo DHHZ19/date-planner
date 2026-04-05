@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import z from 'zod'
-import { dateTimeSchema } from '#/schemas/index.schema'
+import { dateTimeSchema, priceLevelSchema } from '#/schemas/index.schema'
 
 import type {
   DateTimeOption,
@@ -16,6 +16,7 @@ export const getPlaces = createServerFn({ method: 'POST' })
       longitude: number
       search: string
       dateTime: DateTimeOption
+      priceLevel?: string
     }) =>
       z
         .object({
@@ -23,12 +24,17 @@ export const getPlaces = createServerFn({ method: 'POST' })
           longitude: z.number(),
           search: z.string().min(1),
           dateTime: dateTimeSchema,
+          priceLevel: priceLevelSchema.optional(),
         })
         .parse(data),
   )
   .handler(async ({ data }) => {
     try {
       const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
+      const radiusMeters = 2000
+      const latDelta = radiusMeters / 111_320
+      const lngDelta =
+        latDelta / Math.max(Math.cos((data.latitude * Math.PI) / 180), 0.01)
 
       const res = await fetch(
         `https://places.googleapis.com/v1/places:searchText`,
@@ -38,18 +44,22 @@ export const getPlaces = createServerFn({ method: 'POST' })
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': apiKey,
             'X-Goog-FieldMask':
-              'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.websiteUri',
+              'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.websiteUri,places.photos,places.priceLevel,places.priceRange',
           },
           body: JSON.stringify({
             textQuery: `${data.search}`,
             maxResultCount: 10,
-            locationBias: {
-              circle: {
-                center: {
-                  latitude: data.latitude,
-                  longitude: data.longitude,
+            ...(data.priceLevel ? { priceLevels: [data.priceLevel] } : {}),
+            locationRestriction: {
+              rectangle: {
+                low: {
+                  latitude: data.latitude - latDelta,
+                  longitude: data.longitude - lngDelta,
                 },
-                radius: 2000.0,
+                high: {
+                  latitude: data.latitude + latDelta,
+                  longitude: data.longitude + lngDelta,
+                },
               },
             },
           }),

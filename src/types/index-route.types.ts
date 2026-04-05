@@ -22,6 +22,7 @@ export type AnswerKey =
   | 'activitySetting'
   | 'dateVibe'
   | 'food'
+  | 'priceLevel'
 
 export type Question = {
   prompt: string
