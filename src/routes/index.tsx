@@ -45,7 +45,7 @@ export const getPlaces = createServerFn({ method: 'POST' })
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': apiKey,
             'X-Goog-FieldMask':
-              'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes',
+              'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.websiteUri',
           },
           body: JSON.stringify({
             textQuery: `${data.search}`,
@@ -125,7 +125,8 @@ export const getPlaces = createServerFn({ method: 'POST' })
           validPlaces = places
       }
 
-      return validPlaces as unknown as NearbyPlacesResponse
+      console.log(validPlaces)
+      return validPlaces as NearbyPlacesResponse
     } catch (error) {
       console.error(error)
       throw error
