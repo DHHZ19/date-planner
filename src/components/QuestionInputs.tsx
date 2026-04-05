@@ -1,4 +1,4 @@
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { useNavigate, useSearch, Link } from '@tanstack/react-router'
 import type {
   NearbyPlace,
   QuestionInputsProps,
@@ -27,7 +27,7 @@ export const QuestionInputs = ({ currentSection }: QuestionInputsProps) => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const food = search.food
-    const dateTime = dateTimeSchema.catch('Anytime').parse(search.dateTime)
+    const dateTime = dateTimeSchema.catch('Now').parse(search.dateTime)
     const valid = z.string().min(1).safeParse(food)
 
     if (!valid.success) {
@@ -78,12 +78,14 @@ export const QuestionInputs = ({ currentSection }: QuestionInputsProps) => {
                     resetScroll: false,
                   })
                 }}
+                value={search.dateTime}
               >
-                <option value="Anytime">--Please choose a time of day--</option>
-                <option value="Anytime">Anytime</option>
+                <option value="">--Please choose a time of day--</option>
+                <option value="Now">Now</option>
                 <option value="Morning">Morning</option>
                 <option value="Afternoon">Afternoon</option>
-                <option value="Afternoon">Evening</option>
+                <option value="Evening">Evening</option>
+                <option value="Anytime">Anytime</option>
               </select>
             )}
           </div>
@@ -96,11 +98,12 @@ export const QuestionInputs = ({ currentSection }: QuestionInputsProps) => {
         </button>
       </form>
       {places.length > 0 &&
-        places.map((place, index) => (
+        places.map((place) => (
           <li
-            key={place.id ?? `${place.displayName?.text ?? 'place'}-${index}`}
+            key={place.id}
+            className="text-pink-500 hover:text-rose-500 transition font-semibold"
           >
-            {place.displayName?.text ?? 'Unnamed place'}
+            <Link to={`${place.websiteUri}`}>{place.displayName?.text}</Link>
           </li>
         ))}
     </>
