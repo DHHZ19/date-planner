@@ -5,7 +5,9 @@ import type {
   DateTimeOption,
 } from '#/types/index-route.types'
 import { useState } from 'react'
-import { getPlaces, dateTimeSchema } from '#/routes'
+import { getPlaces } from '#/server-functions/index.ts'
+import { dateTimeSchema } from '#/schemas/index.schema'
+
 import z from 'zod'
 
 export const QuestionInputs = ({ currentSection }: QuestionInputsProps) => {
