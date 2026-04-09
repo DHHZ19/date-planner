@@ -47,17 +47,19 @@ export const QuestionInputs = ({ currentSection }: QuestionInputsProps) => {
 
   return (
     <>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-4">
         {currentSection.questions.map((prompt) => (
           <div
             key={prompt.promptKey}
             className="flex flex-col gap-2 justify-between"
           >
-            <label>{prompt.prompt}</label>
+            <label className="text-sm font-semibold text-(--sea-ink)">
+              {prompt.prompt}
+            </label>
 
             {prompt.promptKey === 'dateTime' && (
               <select
-                className="ml-2 rounded-lg border-2 border-pink-200 bg-pink-50/60 px-3 py-1.5 text-pink-900 placeholder:text-pink-300 outline-none ring-pink-300 transition focus:ring-2 cursor-pointer"
+                className="ml-2 cursor-pointer rounded-lg border-2 border-(--line) bg-(--chip-bg) px-3 py-1.5 text-(--sea-ink) outline-none transition placeholder:text-(--sea-ink-soft) focus:border-(--lagoon) focus:ring-2 focus:ring-(--lagoon)"
                 onChange={(e) => {
                   navigate({
                     to: '.',
@@ -93,11 +95,11 @@ export const QuestionInputs = ({ currentSection }: QuestionInputsProps) => {
                     <label
                       key={option.value}
                       className={[
-                        'cursor-pointer rounded-xl border-2 px-3 py-2 transition',
-                        'focus-within:ring-2 focus-within:ring-pink-300',
+                        'cursor-pointer rounded-2xl border-2 px-3 py-2.5 transition duration-200',
+                        'focus-within:ring-2 focus-within:ring-rose-600/70 focus-within:ring-offset-2',
                         selected
-                          ? 'border-pink-500 bg-pink-200 text-pink-900 shadow-sm'
-                          : 'border-pink-200 bg-pink-50/60 text-pink-600 hover:border-pink-300 hover:bg-pink-100',
+                          ? 'border-rose-800 bg-rose-700 text-white shadow-[0_10px_24px_-14px_rgba(159,18,57,0.85)]'
+                          : 'border-rose-300 bg-white/80 text-rose-900 hover:-translate-y-0.5 hover:border-rose-500 hover:bg-rose-50',
                       ].join(' ')}
                     >
                       <input
@@ -132,7 +134,7 @@ export const QuestionInputs = ({ currentSection }: QuestionInputsProps) => {
             {prompt.promptKey !== 'priceLevel' &&
               prompt.promptKey !== 'dateTime' && (
                 <input
-                  className="ml-2 rounded-lg border-2 border-pink-200 bg-pink-50/60 px-3 py-1.5 text-pink-900 placeholder:text-pink-300 outline-none ring-pink-300 transition focus:ring-2"
+                  className="ml-2 rounded-lg border-2 border-(--line) bg-(--chip-bg) px-3 py-1.5 text-(--sea-ink) outline-none transition placeholder:text-(--sea-ink-soft) focus:border-(--lagoon) focus:ring-2 focus:ring-(--lagoon)"
                   type="text"
                   placeholder={prompt.promptKey}
                   value={search[prompt.promptKey] ?? ''}
@@ -152,7 +154,7 @@ export const QuestionInputs = ({ currentSection }: QuestionInputsProps) => {
         ))}
         <button
           type="submit"
-          className="mt-3 inline-flex items-center rounded-xl bg-linear-to-r from-pink-500 to-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-pink-200 transition hover:from-pink-400 hover:to-rose-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-500 cursor-pointer"
+          className="mt-4 inline-flex min-h-11 cursor-pointer items-center justify-center rounded-2xl border border-rose-900/10 bg-linear-to-r from-rose-700 to-pink-700 px-5 py-2.5 text-sm font-semibold tracking-wide text-white shadow-[0_14px_32px_-16px_rgba(159,18,57,0.9)] transition duration-200 hover:-translate-y-0.5 hover:from-rose-600 hover:to-pink-600 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-700"
         >
           Submit
         </button>
@@ -161,7 +163,7 @@ export const QuestionInputs = ({ currentSection }: QuestionInputsProps) => {
         places.map((place) => (
           <li
             key={place.id}
-            className="text-pink-500 hover:text-rose-500 transition font-semibold"
+            className="font-semibold text-rose-700 transition hover:text-rose-900"
           >
             <Link to={`${place.websiteUri}`} target="_blank">
               {place.displayName?.text}
