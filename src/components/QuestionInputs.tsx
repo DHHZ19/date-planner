@@ -158,7 +158,7 @@ export const QuestionInputs = ({
                           'cursor-pointer rounded-2xl border-2 px-3 py-2.5 transition duration-200',
                           'focus-within:ring-2 focus-within:ring-rose-600/70 focus-within:ring-offset-2',
                           selected
-                            ? 'border-rose-800 bg-rose-700 text-white shadow-[0_10px_24px_-14px_rgba(159,18,57,0.85)]'
+                            ? 'border-rose-900 bg-rose-700 text-white shadow-[0_10px_24px_-14px_rgba(159,18,57,0.85)]'
                             : 'border-rose-300 bg-white/80 text-rose-900 hover:-translate-y-0.5 hover:border-rose-500 hover:bg-rose-50',
                         ].join(' ')}
                       >
