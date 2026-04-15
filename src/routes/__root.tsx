@@ -1,5 +1,6 @@
 import {
   HeadContent,
+  Link,
   Scripts,
   createRootRouteWithContext,
 } from '@tanstack/react-router'
@@ -42,7 +43,27 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     ],
   }),
   shellComponent: RootDocument,
+  notFoundComponent: RootNotFound,
 })
+
+function RootNotFound() {
+  return (
+    <main className="page-wrap px-4 py-12">
+      <section className="island-shell rounded-2xl p-6 sm:p-8">
+        <p className="island-kicker mb-2">404</p>
+        <h1 className="display-title mb-3 text-4xl font-bold text-[var(--sea-ink)] sm:text-5xl">
+          Page not found
+        </h1>
+        <p className="m-0 max-w-3xl text-base leading-8 text-[var(--sea-ink-soft)]">
+          The page you requested does not exist.
+        </p>
+        <Link to="/" className="nav-link mt-5 inline-flex items-center">
+          Back to home
+        </Link>
+      </section>
+    </main>
+  )
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
