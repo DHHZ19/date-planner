@@ -23,6 +23,7 @@ export type AnswerKey =
   | 'dateVibe'
   | 'food'
   | 'priceLevel'
+  | 'distance'
 
 export type Question = {
   prompt: string

@@ -1,6 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import z from 'zod'
-import { dateTimeSchema, priceLevelSchema } from '#/schemas/index.schema'
+import {
+  dateTimeSchema,
+  distance,
+  priceLevelSchema,
+  priceLevelArraySchema,
+} from '#/schemas/index.schema'
 
 import type {
   DateTimeOption,
@@ -16,7 +21,8 @@ export const getPlaces = createServerFn({ method: 'POST' })
       longitude: number
       search: string
       dateTime: DateTimeOption
-      priceLevel?: string
+      priceLevel?: string[]
+      distance: string
     }) =>
       z
         .object({
@@ -24,14 +30,21 @@ export const getPlaces = createServerFn({ method: 'POST' })
           longitude: z.number(),
           search: z.string().min(1),
           dateTime: dateTimeSchema,
-          priceLevel: priceLevelSchema.optional(),
+          priceLevel: priceLevelArraySchema.optional(),
+          distance: distance,
         })
         .parse(data),
   )
   .handler(async ({ data }) => {
     try {
       const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
-      const radiusMeters = 2000
+      const MILES_TO_METERS = 1609.344
+      const miles = Number(data.distance)
+      const radiusMeters =
+        Number.isFinite(miles) && miles > 0
+          ? Math.round(miles * MILES_TO_METERS)
+          : 0
+
       const latDelta = radiusMeters / 111_320
       const lngDelta =
         latDelta / Math.max(Math.cos((data.latitude * Math.PI) / 180), 0.01)
@@ -44,12 +57,11 @@ export const getPlaces = createServerFn({ method: 'POST' })
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': apiKey,
             'X-Goog-FieldMask':
-              'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.websiteUri,places.photos,places.priceLevel,places.priceRange',
+              'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.websiteUri,places.photos,places.priceLevel,places.priceRange,places.rating,places.userRatingCount',
           },
           body: JSON.stringify({
             textQuery: `${data.search}`,
             maxResultCount: 10,
-            ...(data.priceLevel ? { priceLevels: [data.priceLevel] } : {}),
             locationRestriction: {
               rectangle: {
                 low: {
@@ -128,8 +140,22 @@ export const getPlaces = createServerFn({ method: 'POST' })
           validPlaces = places
       }
 
+      if (validPlaces.length === 0) return [] as NearbyPlacesResponse
+
       console.log(validPlaces)
-      return validPlaces as NearbyPlacesResponse
+
+      const thePlaces = validPlaces.filter((place) => {
+        if (!data.priceLevel?.length) return true
+        if (!place.priceLevel) return true
+
+        const parsedPriceLevel = priceLevelSchema.safeParse(place.priceLevel)
+        if (!parsedPriceLevel.success) return false
+
+        return data.priceLevel.includes(parsedPriceLevel.data)
+      })
+
+      console.log(thePlaces)
+      return thePlaces as NearbyPlacesResponse
     } catch (error) {
       console.error(error)
       throw error
