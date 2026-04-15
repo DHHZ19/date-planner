@@ -160,6 +160,7 @@ export const getPlaces = createServerFn({ method: 'POST' })
             return false
           }
         }
+        return true
       })
 
       return rightPlaces as NearbyPlacesResponse
