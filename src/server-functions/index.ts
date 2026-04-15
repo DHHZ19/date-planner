@@ -142,8 +142,6 @@ export const getPlaces = createServerFn({ method: 'POST' })
 
       if (validPlaces.length === 0) return [] as NearbyPlacesResponse
 
-      console.log(validPlaces)
-
       const thePlaces = validPlaces.filter((place) => {
         if (!data.priceLevel?.length) return true
         if (!place.priceLevel) return true
@@ -154,8 +152,17 @@ export const getPlaces = createServerFn({ method: 'POST' })
         return data.priceLevel.includes(parsedPriceLevel.data)
       })
 
-      console.log(thePlaces)
-      return thePlaces as NearbyPlacesResponse
+      const rightPlaces = thePlaces.filter((place) => {
+        if (place.rating && place.userRatingCount) {
+          if (place.rating > 3 && place.userRatingCount > 20) {
+            return true
+          } else {
+            return false
+          }
+        }
+      })
+
+      return rightPlaces as NearbyPlacesResponse
     } catch (error) {
       console.error(error)
       throw error

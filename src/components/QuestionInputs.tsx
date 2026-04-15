@@ -273,16 +273,14 @@ export const QuestionInputs = ({
 
       {activies.length > 0 &&
         activies.map((activity) => (
-          <>
-            <li
-              key={activity.id}
-              className="font-semibold text-rose-700 transition hover:text-rose-900"
-            >
-              <Link to={`${activity.websiteUri}`} target="_blank">
-                {activity.displayName?.text}
-              </Link>
-            </li>
-          </>
+          <li
+            key={activity.id}
+            className="font-semibold text-rose-700 transition hover:text-rose-900"
+          >
+            <Link to={`${activity.websiteUri}`} target="_blank">
+              {activity.displayName?.text}
+            </Link>
+          </li>
         ))}
     </>
   )

@@ -46,7 +46,7 @@ function App() {
           promptKey: 'food',
         },
         {
-          prompt: 'Distance',
+          prompt: 'Distance (in miles)',
           promptKey: 'distance',
         },
         {
