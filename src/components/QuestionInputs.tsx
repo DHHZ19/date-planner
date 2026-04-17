@@ -1,14 +1,12 @@
 import { useNavigate, useSearch, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import type {
+  DatePlanResponse,
   NearbyPlace,
-  DateTimeOption,
   QuestionSection,
 } from '#/types/index-route.types'
-import { getPlaces } from '#/server-functions/index.ts'
-import { dateTimeSchema } from '#/schemas/index.schema'
+import { getDatePlan } from '#/server-functions/index.ts'
 import PaginationButtons from '#/components/PaginationButtons'
-import z from 'zod'
 
 export const QuestionInputs = ({
   currentSection,
@@ -35,68 +33,24 @@ export const QuestionInputs = ({
     })
   }, [])
 
-  const fetchData = async ({
-    query,
-    dateTime,
-    priceLevel,
-    distance,
-  }: {
-    query: string
-    dateTime: DateTimeOption
-    priceLevel?: string[]
-    distance: string
-  }) => {
-    if (!currentPosition) {
-      return []
-    }
-
-    const res = (await getPlaces({
-      data: {
-        latitude: currentPosition.latitude,
-        longitude: currentPosition.longitude,
-        search: query,
-        dateTime,
-        priceLevel,
-        distance,
-      },
-    })) as NearbyPlace[]
-
-    return res
-  }
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const food = search.food
-    const activity = search.activityTypes
-    const dateTime = dateTimeSchema.catch('Now').parse(search.dateTime)
-    const priceLevel = search.priceLevel
-      ?.split(',')
-      .filter((value) => value.length > 0)
-    const distance = search.distance as string
-    const valid = z.string().min(1).safeParse(food)
-    const validActivity = z.string().min(1).safeParse(activity)
 
-    if (!valid.success || !validActivity.success) {
-      console.error('not a string')
+    if (!currentPosition) {
+      console.error('Current position is unavailable.')
       return
     }
 
-    const resturants = await fetchData({
-      query: valid.data,
-      dateTime,
-      priceLevel,
-      distance,
-    })
-    setPlaces(resturants)
+    const datePlanResponse = (await getDatePlan({
+      data: {
+        latitude: currentPosition.latitude,
+        longitude: currentPosition.longitude,
+        searchState: search,
+      },
+    })) as DatePlanResponse
 
-    const activites = await fetchData({
-      query: validActivity.data,
-      dateTime,
-      priceLevel,
-      distance,
-    })
-
-    setActivites(activites)
+    setPlaces(datePlanResponse.restaurants)
+    setActivites(datePlanResponse.activities)
   }
 
   return (

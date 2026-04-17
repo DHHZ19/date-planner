@@ -6,13 +6,409 @@ import {
   priceLevelSchema,
   priceLevelArraySchema,
 } from '#/schemas/index.schema'
-
 import type {
+  DatePlanResponse,
   DateTimeOption,
   GoogleSearchTextResponse,
   NearbyPlace,
   NearbyPlacesResponse,
+  SearchState,
 } from '../types/index-route.types'
+import OpenAI from 'openai'
+
+const GOOGLE_FIELD_MASK =
+  'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.websiteUri,places.photos,places.priceLevel,places.priceRange,places.rating,places.userRatingCount'
+const MILES_TO_METERS = 1609.344
+type QueryKind = 'restaurant' | 'activity'
+
+const searchStateSchema = z.object({
+  step: z.number().int().positive(),
+  dateTime: z.string().optional(),
+  startingArea: z.string().optional(),
+  duration: z.string().optional(),
+  activityTypes: z.string().optional(),
+  activitySetting: z.string().optional(),
+  dateVibe: z.string().optional(),
+  food: z.string().optional(),
+  priceLevel: z.string().optional(),
+  distance: z.string().optional(),
+})
+
+const getWeekdayDescription = (place: NearbyPlace) => {
+  const descriptions = place.currentOpeningHours?.weekdayDescriptions ?? []
+  if (descriptions.length === 0) return ''
+
+  const mondayFirstIndex = (new Date().getDay() + 6) % 7
+  return descriptions[mondayFirstIndex] ?? ''
+}
+
+const isOpenNow = (place: NearbyPlace) => {
+  return place.currentOpeningHours?.openNow === true
+}
+
+const isOpenDuringMorningHours = (place: NearbyPlace) => {
+  const descriptionOfDay = getWeekdayDescription(place)
+  return descriptionOfDay.includes('AM')
+}
+
+const isOpenDuringAfternoonHours = (place: NearbyPlace) => {
+  const descriptionOfDay = getWeekdayDescription(place)
+  return descriptionOfDay.includes('PM')
+}
+
+const filterPlacesByDateTime = (
+  places: NearbyPlace[],
+  dateTime: DateTimeOption,
+): NearbyPlace[] => {
+  switch (dateTime) {
+    case 'Morning':
+      return places.filter((place) => isOpenDuringMorningHours(place))
+
+    case 'Afternoon':
+      return places.filter((place) => isOpenDuringAfternoonHours(place))
+
+    case 'Now':
+      return places.filter((place) => isOpenNow(place))
+
+    case 'Anytime':
+      return places
+
+    default:
+      return places
+  }
+}
+
+const filterPlacesByPriceLevel = (
+  places: NearbyPlace[],
+  priceLevel?: z.infer<typeof priceLevelArraySchema>,
+) => {
+  return places.filter((place) => {
+    if (!priceLevel?.length) return true
+    if (!place.priceLevel) return true
+
+    const parsedPriceLevel = priceLevelSchema.safeParse(place.priceLevel)
+    if (!parsedPriceLevel.success) return false
+
+    return priceLevel.includes(parsedPriceLevel.data)
+  })
+}
+
+const filterPlacesByRating = (places: NearbyPlace[]) => {
+  return places.filter((place) => {
+    if (place.rating && place.userRatingCount) {
+      if (place.rating > 3 && place.userRatingCount > 20) {
+        return true
+      }
+
+      return false
+    }
+
+    return true
+  })
+}
+
+const buildTextQuery = (search: string) => {
+  return search.trim()
+}
+
+type RefinementSettings = {
+  queryKind: QueryKind
+  dateVibe?: string
+  food?: string
+  activityTypes?: string
+  activitySetting?: string
+}
+
+const buildPreferenceSettingsForQuery = ({
+  queryKind,
+  searchState,
+}: {
+  queryKind: QueryKind
+  searchState: SearchState
+}): RefinementSettings => {
+  const dateVibe = searchState.dateVibe?.trim()
+
+  if (queryKind === 'restaurant') {
+    return {
+      queryKind,
+      dateVibe,
+      food: searchState.food?.trim(),
+    }
+  }
+
+  return {
+    queryKind,
+    dateVibe,
+    activityTypes: searchState.activityTypes?.trim(),
+    activitySetting: searchState.activitySetting?.trim(),
+  }
+}
+
+const rankedPlaceSelectionSchema = z.object({
+  id: z.string().min(1),
+  reason: z.string().min(1).optional(),
+})
+
+const rankedPlaceObjectArraySchema = z.object({
+  rankedPlaceIds: z.array(rankedPlaceSelectionSchema).max(10),
+})
+
+const rankedPlaceStringArraySchema = z.object({
+  rankedPlaceIds: z.array(z.string().min(1)).max(10),
+})
+
+type RankedPlaceSelection = z.infer<typeof rankedPlaceSelectionSchema>
+
+const extractTextCandidatesFromResponseOutput = (output: unknown) => {
+  if (typeof output === 'string') {
+    return [output]
+  }
+
+  if (!Array.isArray(output)) {
+    return [] as string[]
+  }
+
+  const textCandidates: string[] = []
+
+  for (const item of output) {
+    if (!item || typeof item !== 'object') {
+      continue
+    }
+
+    const maybeRecord = item as Record<string, unknown>
+
+    if (typeof maybeRecord.text === 'string') {
+      textCandidates.push(maybeRecord.text)
+    }
+
+    if (Array.isArray(maybeRecord.content)) {
+      for (const contentItem of maybeRecord.content) {
+        if (!contentItem || typeof contentItem !== 'object') {
+          continue
+        }
+
+        const maybeContentRecord = contentItem as Record<string, unknown>
+        if (typeof maybeContentRecord.text === 'string') {
+          textCandidates.push(maybeContentRecord.text)
+        }
+      }
+    }
+  }
+
+  return textCandidates
+}
+
+const parseRankedPlaceIdsFromOutput = (
+  output: unknown,
+): RankedPlaceSelection[] => {
+  const rawCandidates = extractTextCandidatesFromResponseOutput(output)
+  const candidateStrings = rawCandidates.flatMap((candidate) => [
+    candidate.trim(),
+    candidate
+      .trim()
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```$/i, ''),
+  ])
+
+  for (const candidate of candidateStrings) {
+    const parsedJson = z
+      .string()
+      .transform((value) => JSON.parse(value))
+      .safeParse(candidate)
+
+    if (!parsedJson.success) {
+      continue
+    }
+
+    const parsedObjectArray = rankedPlaceObjectArraySchema.safeParse(
+      parsedJson.data,
+    )
+    if (parsedObjectArray.success) {
+      return parsedObjectArray.data.rankedPlaceIds
+    }
+
+    const parsedStringArray = rankedPlaceStringArraySchema.safeParse(
+      parsedJson.data,
+    )
+    if (parsedStringArray.success) {
+      return parsedStringArray.data.rankedPlaceIds.map((id) => ({ id }))
+    }
+  }
+
+  return [] as RankedPlaceSelection[]
+}
+
+const refinePlacesWithAI = async ({
+  places,
+  search,
+  settings,
+}: {
+  places: NearbyPlace[]
+  search: string
+  settings: RefinementSettings
+}) => {
+  if (places.length === 0) {
+    return places
+  }
+
+  const preferenceValues =
+    settings.queryKind === 'restaurant'
+      ? [settings.food, settings.dateVibe]
+      : [settings.activityTypes, settings.activitySetting, settings.dateVibe]
+
+  const hasPreferenceSettings = preferenceValues.some(
+    (value) => typeof value === 'string' && value.length > 0,
+  )
+  if (!hasPreferenceSettings) {
+    return places
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    return places
+  }
+
+  const candidatePlaces = places.map((place) => ({
+    id: place.id,
+    name: place.displayName?.text ?? '',
+    primaryType: place.primaryType ?? '',
+    types: place.types ?? [],
+    rating: place.rating ?? null,
+    userRatingCount: place.userRatingCount ?? null,
+    priceLevel: place.priceLevel ?? null,
+  }))
+
+  try {
+    const client = new OpenAI({ apiKey })
+    const response = await client.responses.create({
+      model: 'gpt-5.4',
+      input: `Refine and rank place candidates for a ${settings.queryKind} date search.
+              Search query: "${search}".
+              Preferences: ${JSON.stringify(settings)}.
+              Candidates: ${JSON.stringify(candidatePlaces)}.
+              Return only valid JSON in this exact shape: {"rankedPlaceIds":[{id: "id1", reason: reason},{id: "id2", reason: reason}]}.
+              Include only ids from candidates and order best to worst for this ${settings.queryKind} query type also add a reason.`,
+    })
+
+    const rankedPlaceIds = parseRankedPlaceIdsFromOutput(response.output)
+
+    const ranked = rankedPlaceIds.slice(0, 3)
+    console.log(ranked)
+
+    if (rankedPlaceIds.length === 0 || ranked.length === 0) {
+      return places
+    }
+
+    return places.filter((place) => ranked.some((p) => place.id === p.id))
+    return []
+
+    const placeById = new Map(places.map((place) => [place.id, place]))
+
+    const rankedPlaces = rankedPlaceIds
+      .map((selection) => placeById.get(selection.id))
+      .filter((place): place is NearbyPlace => Boolean(place))
+
+    if (rankedPlaces.length === 0) {
+      return places
+    }
+
+    const rankedIds = new Set(rankedPlaces.map((place) => place.id))
+    const remainingPlaces = places.filter((place) => !rankedIds.has(place.id))
+
+    return [...rankedPlaces, ...remainingPlaces]
+  } catch (error) {
+    console.error('OpenAI result refinement failed', error)
+    return places
+  }
+}
+
+const fetchPlacesForQuery = async ({
+  latitude,
+  longitude,
+  search,
+  queryKind,
+  dateTime,
+  priceLevel,
+  distance,
+  searchState,
+}: {
+  latitude: number
+  longitude: number
+  search: string
+  queryKind: QueryKind
+  dateTime: DateTimeOption
+  priceLevel?: z.infer<typeof priceLevelArraySchema>
+  distance: string
+  searchState: SearchState
+}) => {
+  const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
+  const miles = Number(distance)
+  const radiusMeters =
+    Number.isFinite(miles) && miles > 0
+      ? Math.round(miles * MILES_TO_METERS)
+      : 0
+
+  const latDelta = radiusMeters / 111_320
+  const lngDelta =
+    latDelta / Math.max(Math.cos((latitude * Math.PI) / 180), 0.01)
+  const settings = buildPreferenceSettingsForQuery({ queryKind, searchState })
+  const textQuery = buildTextQuery(search)
+
+  const res = await fetch(
+    `https://places.googleapis.com/v1/places:searchText`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': GOOGLE_FIELD_MASK,
+      },
+      body: JSON.stringify({
+        textQuery,
+        maxResultCount: 10,
+        locationRestriction: {
+          rectangle: {
+            low: {
+              latitude: latitude - latDelta,
+              longitude: longitude - lngDelta,
+            },
+            high: {
+              latitude: latitude + latDelta,
+              longitude: longitude + lngDelta,
+            },
+          },
+        },
+      }),
+    },
+  )
+
+  if (!res.ok) {
+    const errorBody = await res.text()
+    throw new Error(
+      `Google Places request failed (${res.status}): ${errorBody}`,
+    )
+  }
+
+  const placesData = (await res.json()) as GoogleSearchTextResponse
+  const places: NearbyPlace[] = placesData.places ?? []
+
+  const validDateTimePlaces = filterPlacesByDateTime(places, dateTime)
+  if (validDateTimePlaces.length === 0) return [] as NearbyPlacesResponse
+
+  const priceFilteredPlaces = filterPlacesByPriceLevel(
+    validDateTimePlaces,
+    priceLevel,
+  )
+  const ratingFilteredPlaces = filterPlacesByRating(priceFilteredPlaces)
+  const refinedPlaces = await refinePlacesWithAI({
+    places: ratingFilteredPlaces,
+    search,
+    settings,
+  })
+
+  return refinedPlaces as NearbyPlacesResponse
+}
 
 export const getPlaces = createServerFn({ method: 'POST' })
   .inputValidator(
@@ -37,133 +433,91 @@ export const getPlaces = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     try {
-      const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
-      const MILES_TO_METERS = 1609.344
-      const miles = Number(data.distance)
-      const radiusMeters =
-        Number.isFinite(miles) && miles > 0
-          ? Math.round(miles * MILES_TO_METERS)
-          : 0
-
-      const latDelta = radiusMeters / 111_320
-      const lngDelta =
-        latDelta / Math.max(Math.cos((data.latitude * Math.PI) / 180), 0.01)
-
-      const res = await fetch(
-        `https://places.googleapis.com/v1/places:searchText`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Goog-Api-Key': apiKey,
-            'X-Goog-FieldMask':
-              'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.websiteUri,places.photos,places.priceLevel,places.priceRange,places.rating,places.userRatingCount',
-          },
-          body: JSON.stringify({
-            textQuery: `${data.search}`,
-            maxResultCount: 10,
-            locationRestriction: {
-              rectangle: {
-                low: {
-                  latitude: data.latitude - latDelta,
-                  longitude: data.longitude - lngDelta,
-                },
-                high: {
-                  latitude: data.latitude + latDelta,
-                  longitude: data.longitude + lngDelta,
-                },
-              },
-            },
-          }),
+      const places = await fetchPlacesForQuery({
+        ...data,
+        queryKind: 'activity',
+        searchState: {
+          step: 1,
+          dateTime: data.dateTime,
+          activityTypes: data.search,
+          activitySetting: undefined,
+          dateVibe: undefined,
+          food: data.search,
+          priceLevel: data.priceLevel?.join(','),
+          distance: data.distance,
+          startingArea: undefined,
+          duration: undefined,
         },
+      })
+      return places
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  })
+
+export const getDatePlan = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (data: { latitude: number; longitude: number; searchState: SearchState }) =>
+      z
+        .object({
+          latitude: z.number(),
+          longitude: z.number(),
+          searchState: searchStateSchema,
+        })
+        .parse(data),
+  )
+  .handler(async ({ data }) => {
+    try {
+      const dateTime = dateTimeSchema
+        .catch('Now')
+        .parse(data.searchState.dateTime)
+      const parsedDistance = distance
+        .catch('5')
+        .parse(data.searchState.distance)
+      const parsedPriceLevels = priceLevelArraySchema.safeParse(
+        (data.searchState.priceLevel ?? '')
+          .split(',')
+          .filter((value) => value.length > 0),
       )
+      const priceLevel = parsedPriceLevels.success
+        ? parsedPriceLevels.data
+        : undefined
 
-      if (!res.ok) {
-        const errorBody = await res.text()
-        throw new Error(
-          `Google Places request failed (${res.status}): ${errorBody}`,
-        )
-      }
+      const restaurantQuery = data.searchState.food?.trim() ?? ''
+      const activityQuery = data.searchState.activityTypes?.trim() ?? ''
 
-      const placesData = (await res.json()) as GoogleSearchTextResponse
+      const [restaurants, activities] = await Promise.all([
+        restaurantQuery.length > 0
+          ? fetchPlacesForQuery({
+              latitude: data.latitude,
+              longitude: data.longitude,
+              search: restaurantQuery,
+              queryKind: 'restaurant',
+              dateTime,
+              priceLevel,
+              distance: parsedDistance,
+              searchState: data.searchState,
+            })
+          : Promise.resolve([] as NearbyPlacesResponse),
+        activityQuery.length > 0
+          ? fetchPlacesForQuery({
+              latitude: data.latitude,
+              longitude: data.longitude,
+              search: activityQuery,
+              queryKind: 'activity',
+              dateTime,
+              priceLevel,
+              distance: parsedDistance,
+              searchState: data.searchState,
+            })
+          : Promise.resolve([] as NearbyPlacesResponse),
+      ])
 
-      const places: NearbyPlace[] = placesData.places ?? []
-
-      // weekdayDescriptions are Monday-first, but getDay() is Sunday-first.
-      const getWeekdayDescription = (place: NearbyPlace) => {
-        const descriptions =
-          place.currentOpeningHours?.weekdayDescriptions ?? []
-        if (descriptions.length === 0) return ''
-
-        const mondayFirstIndex = (new Date().getDay() + 6) % 7
-        return descriptions[mondayFirstIndex] ?? ''
-      }
-
-      const isOpenNow = (place: NearbyPlace) => {
-        return place.currentOpeningHours?.openNow === true
-      }
-
-      const isOpenDuringMorningHours = (place: NearbyPlace) => {
-        const descriptionOfDay = getWeekdayDescription(place)
-        return descriptionOfDay.includes('AM')
-      }
-
-      const isOpenDuringAfternoonHours = (place: NearbyPlace) => {
-        const descriptionOfDay = getWeekdayDescription(place)
-        return descriptionOfDay.includes('PM')
-      }
-
-      let validPlaces = places
-
-      switch (data.dateTime) {
-        case 'Morning':
-          validPlaces = places.filter((place) =>
-            isOpenDuringMorningHours(place),
-          )
-          break
-
-        case 'Afternoon':
-          validPlaces = places.filter((place) =>
-            isOpenDuringAfternoonHours(place),
-          )
-          break
-
-        case 'Now':
-          validPlaces = places.filter((place) => isOpenNow(place))
-          break
-
-        case 'Anytime':
-          validPlaces = places
-          break
-
-        default:
-          validPlaces = places
-      }
-
-      if (validPlaces.length === 0) return [] as NearbyPlacesResponse
-
-      const thePlaces = validPlaces.filter((place) => {
-        if (!data.priceLevel?.length) return true
-        if (!place.priceLevel) return true
-
-        const parsedPriceLevel = priceLevelSchema.safeParse(place.priceLevel)
-        if (!parsedPriceLevel.success) return false
-
-        return data.priceLevel.includes(parsedPriceLevel.data)
-      })
-
-      const rightPlaces = thePlaces.filter((place) => {
-        if (place.rating && place.userRatingCount) {
-          if (place.rating > 3 && place.userRatingCount > 20) {
-            return true
-          } else {
-            return false
-          }
-        }
-        return true
-      })
-
-      return rightPlaces as NearbyPlacesResponse
+      return {
+        restaurants,
+        activities,
+      } as DatePlanResponse
     } catch (error) {
       console.error(error)
       throw error
