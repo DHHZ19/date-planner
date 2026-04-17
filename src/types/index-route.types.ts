@@ -12,6 +12,14 @@ export type NearbyPlacesResponse = ValidateSerializableInput<
   NearbyPlace[]
 >
 
+export type DatePlanResponse = ValidateSerializableInput<
+  Register,
+  {
+    restaurants: NearbyPlace[]
+    activities: NearbyPlace[]
+  }
+>
+
 export type DateTimeOption = 'Morning' | 'Afternoon' | 'Now' | 'Anytime'
 
 export type AnswerKey =
