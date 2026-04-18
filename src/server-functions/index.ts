@@ -2,9 +2,10 @@ import { createServerFn } from '@tanstack/react-start'
 import z from 'zod'
 import {
   dateTimeSchema,
-  distance,
+  distanceSchema,
   priceLevelSchema,
   priceLevelArraySchema,
+  searchStateSchema,
 } from '#/schemas/index.schema'
 import type {
   DatePlanResponse,
@@ -21,19 +22,63 @@ const GOOGLE_FIELD_MASK =
 const MILES_TO_METERS = 1609.344
 type QueryKind = 'restaurant' | 'activity'
 
-const searchStateSchema = z.object({
-  step: z.number().int().positive(),
-  dateTime: z.string().optional(),
-  startingArea: z.string().optional(),
-  duration: z.string().optional(),
-  activityTypes: z.string().optional(),
-  activitySetting: z.string().optional(),
-  dateVibe: z.string().optional(),
-  food: z.string().optional(),
-  priceLevel: z.string().optional(),
-  distance: z.string().optional(),
-})
+/**
+ * Time ranges (24-hour) used to determine if a place is open during a given
+ * date-time slot. We check whether the place's opening hours overlap with the
+ * target window on the current day of the week.
+ */
+const TIME_RANGES: Record<
+  Exclude<DateTimeOption, 'Now' | 'Anytime'>,
+  { startHour: number; endHour: number }
+> = {
+  Morning: { startHour: 6, endHour: 12 },
+  Afternoon: { startHour: 12, endHour: 17 },
+  Evening: { startHour: 17, endHour: 22 },
+  'Late Night': { startHour: 22, endHour: 26 }, // 26 = 2 AM next day
+}
 
+/**
+ * Attempt to determine whether `place` is open during the given hour range by
+ * inspecting `currentOpeningHours.periods`. Each period has an `open` and an
+ * optional `close` point with `{ day, hour, minute }`.
+ *
+ * Returns `true` if any period overlaps with the target window, `false` if no
+ * period overlaps, or `null` if structured period data is unavailable (caller
+ * should fall back to string heuristic).
+ */
+const isOpenDuringHourRange = (
+  place: NearbyPlace,
+  startHour: number,
+  endHour: number,
+): boolean | null => {
+  const periods = place.currentOpeningHours?.periods
+  if (!periods || periods.length === 0) return null
+
+  const todayDow = new Date().getDay() // 0 = Sun
+
+  for (const period of periods) {
+    const open = period.open
+    if (!open || open.day !== todayDow) continue
+
+    const openHour = open.hour ?? 0
+    // If there is no close point, the place is open 24 hours
+    const close = period.close
+    let closeHour = close ? (close.hour ?? 0) : 24
+    // Handle overnight spans (close hour on the next day)
+    if (closeHour <= openHour) closeHour += 24
+
+    // Check overlap: place open [openHour, closeHour) vs target [startHour, endHour)
+    if (openHour < endHour && closeHour > startHour) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Fallback: check weekday description strings for AM/PM keywords.
+ */
 const getWeekdayDescription = (place: NearbyPlace) => {
   const descriptions = place.currentOpeningHours?.weekdayDescriptions ?? []
   if (descriptions.length === 0) return ''
@@ -42,40 +87,43 @@ const getWeekdayDescription = (place: NearbyPlace) => {
   return descriptions[mondayFirstIndex] ?? ''
 }
 
+const isOpenDuringRangeFallback = (
+  place: NearbyPlace,
+  range: { startHour: number; endHour: number },
+): boolean => {
+  const desc = getWeekdayDescription(place)
+  if (desc.length === 0) return true // no data – include rather than exclude
+
+  if (range.startHour < 12) return desc.includes('AM')
+  return desc.includes('PM')
+}
+
 const isOpenNow = (place: NearbyPlace) => {
   return place.currentOpeningHours?.openNow === true
 }
 
-const isOpenDuringMorningHours = (place: NearbyPlace) => {
-  const descriptionOfDay = getWeekdayDescription(place)
-  return descriptionOfDay.includes('AM')
-}
-
-const isOpenDuringAfternoonHours = (place: NearbyPlace) => {
-  const descriptionOfDay = getWeekdayDescription(place)
-  return descriptionOfDay.includes('PM')
+const isPlaceOpenDuringSlot = (
+  place: NearbyPlace,
+  range: { startHour: number; endHour: number },
+): boolean => {
+  const structured = isOpenDuringHourRange(
+    place,
+    range.startHour,
+    range.endHour,
+  )
+  if (structured !== null) return structured
+  return isOpenDuringRangeFallback(place, range)
 }
 
 const filterPlacesByDateTime = (
   places: NearbyPlace[],
   dateTime: DateTimeOption,
 ): NearbyPlace[] => {
-  switch (dateTime) {
-    case 'Morning':
-      return places.filter((place) => isOpenDuringMorningHours(place))
+  if (dateTime === 'Anytime') return places
+  if (dateTime === 'Now') return places.filter((place) => isOpenNow(place))
 
-    case 'Afternoon':
-      return places.filter((place) => isOpenDuringAfternoonHours(place))
-
-    case 'Now':
-      return places.filter((place) => isOpenNow(place))
-
-    case 'Anytime':
-      return places
-
-    default:
-      return places
-  }
+  const range = TIME_RANGES[dateTime]
+  return places.filter((place) => isPlaceOpenDuringSlot(place, range))
 }
 
 const filterPlacesByPriceLevel = (
@@ -330,7 +378,7 @@ const fetchPlacesForQuery = async ({
   queryKind,
   dateTime,
   priceLevel,
-  distance,
+  distanceMiles,
   searchState,
 }: {
   latitude: number
@@ -339,11 +387,11 @@ const fetchPlacesForQuery = async ({
   queryKind: QueryKind
   dateTime: DateTimeOption
   priceLevel?: z.infer<typeof priceLevelArraySchema>
-  distance: string
+  distanceMiles: string
   searchState: SearchState
 }) => {
   const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
-  const miles = Number(distance)
+  const miles = Number(distanceMiles)
   const radiusMeters =
     Number.isFinite(miles) && miles > 0
       ? Math.round(miles * MILES_TO_METERS)
@@ -427,15 +475,20 @@ export const getPlaces = createServerFn({ method: 'POST' })
           search: z.string().min(1),
           dateTime: dateTimeSchema,
           priceLevel: priceLevelArraySchema.optional(),
-          distance: distance,
+          distance: distanceSchema,
         })
         .parse(data),
   )
   .handler(async ({ data }) => {
     try {
       const places = await fetchPlacesForQuery({
-        ...data,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        search: data.search,
         queryKind: 'activity',
+        dateTime: data.dateTime,
+        priceLevel: data.priceLevel,
+        distanceMiles: data.distance,
         searchState: {
           step: 1,
           dateTime: data.dateTime,
@@ -472,7 +525,7 @@ export const getDatePlan = createServerFn({ method: 'POST' })
       const dateTime = dateTimeSchema
         .catch('Now')
         .parse(data.searchState.dateTime)
-      const parsedDistance = distance
+      const parsedDistance = distanceSchema
         .catch('5')
         .parse(data.searchState.distance)
       const parsedPriceLevels = priceLevelArraySchema.safeParse(
@@ -496,7 +549,7 @@ export const getDatePlan = createServerFn({ method: 'POST' })
               queryKind: 'restaurant',
               dateTime,
               priceLevel,
-              distance: parsedDistance,
+              distanceMiles: parsedDistance,
               searchState: data.searchState,
             })
           : Promise.resolve([] as NearbyPlacesResponse),
@@ -508,7 +561,7 @@ export const getDatePlan = createServerFn({ method: 'POST' })
               queryKind: 'activity',
               dateTime,
               priceLevel,
-              distance: parsedDistance,
+              distanceMiles: parsedDistance,
               searchState: data.searchState,
             })
           : Promise.resolve([] as NearbyPlacesResponse),

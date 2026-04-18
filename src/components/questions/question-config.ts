@@ -5,6 +5,8 @@ export type QuestionFieldType = 'text' | 'dateTime' | 'priceLevel' | 'distance'
 export type QuestionFieldConfig = {
   key: AnswerKey
   fieldType: QuestionFieldType
+  layout: 'half' | 'full'
+  helperText?: string
 }
 
 export const QUESTION_SECTIONS: QuestionSection[] = [
@@ -41,7 +43,8 @@ export const QUESTION_SECTIONS: QuestionSection[] = [
         promptKey: 'activitySetting',
       },
       {
-        prompt: 'Would you like the date to be relaxed, adventurous, or romantic?',
+        prompt:
+          'Would you like the date to be relaxed, adventurous, or romantic?',
         promptKey: 'dateVibe',
       },
     ],
@@ -49,18 +52,39 @@ export const QUESTION_SECTIONS: QuestionSection[] = [
 ]
 
 export const QUESTION_FIELD_CONFIGS: Record<AnswerKey, QuestionFieldConfig> = {
-  dateTime: { key: 'dateTime', fieldType: 'dateTime' },
-  startingArea: { key: 'startingArea', fieldType: 'text' },
-  duration: { key: 'duration', fieldType: 'text' },
-  activityTypes: { key: 'activityTypes', fieldType: 'text' },
-  activitySetting: { key: 'activitySetting', fieldType: 'text' },
-  dateVibe: { key: 'dateVibe', fieldType: 'text' },
-  food: { key: 'food', fieldType: 'text' },
-  priceLevel: { key: 'priceLevel', fieldType: 'priceLevel' },
-  distance: { key: 'distance', fieldType: 'distance' },
+  dateTime: { key: 'dateTime', fieldType: 'dateTime', layout: 'half' },
+  startingArea: { key: 'startingArea', fieldType: 'text', layout: 'half' },
+  duration: { key: 'duration', fieldType: 'text', layout: 'half' },
+  activityTypes: { key: 'activityTypes', fieldType: 'text', layout: 'full' },
+  activitySetting: {
+    key: 'activitySetting',
+    fieldType: 'text',
+    layout: 'half',
+  },
+  dateVibe: { key: 'dateVibe', fieldType: 'text', layout: 'half' },
+  food: { key: 'food', fieldType: 'text', layout: 'half' },
+  priceLevel: {
+    key: 'priceLevel',
+    fieldType: 'priceLevel',
+    layout: 'full',
+    helperText: 'Choose one or more ranges that fit your budget.',
+  },
+  distance: {
+    key: 'distance',
+    fieldType: 'distance',
+    layout: 'half',
+    helperText: 'Search radius in miles.',
+  },
 }
 
-export const DATE_TIME_OPTIONS = ['Now', 'Morning', 'Afternoon', 'Anytime'] as const
+export const DATE_TIME_OPTIONS = [
+  'Now',
+  'Morning',
+  'Afternoon',
+  'Evening',
+  'Late Night',
+  'Anytime',
+] as const
 
 export const PRICE_LEVEL_OPTIONS = [
   { value: 'PRICE_LEVEL_INEXPENSIVE', dollars: '$' },
