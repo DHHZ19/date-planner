@@ -8,12 +8,18 @@ import type { Question } from '#/types/index-route.types'
 
 export default function QuestionFieldRenderer({
   question,
+  inputId,
+  inputName,
+  describedBy,
   value,
   selectedCsvValues,
   onChange,
   onToggleCsvValue,
 }: {
   question: Question
+  inputId: string
+  inputName: string
+  describedBy?: string
   value: string | undefined
   selectedCsvValues: string[]
   onChange: (value: string | undefined) => void
@@ -22,23 +28,48 @@ export default function QuestionFieldRenderer({
   const fieldConfig = QUESTION_FIELD_CONFIGS[question.promptKey]
 
   if (fieldConfig.fieldType === 'dateTime') {
-    return <DateTimeField value={value} onChange={onChange} />
+    return (
+      <DateTimeField
+        id={inputId}
+        name={inputName}
+        value={value}
+        describedBy={describedBy}
+        onChange={onChange}
+      />
+    )
   }
 
   if (fieldConfig.fieldType === 'priceLevel') {
     return (
-      <PriceLevelField selectedValues={selectedCsvValues} onToggle={onToggleCsvValue} />
+      <PriceLevelField
+        name={inputName}
+        describedBy={describedBy}
+        selectedValues={selectedCsvValues}
+        onToggle={onToggleCsvValue}
+      />
     )
   }
 
   if (fieldConfig.fieldType === 'distance') {
-    return <DistanceField value={value} onChange={onChange} />
+    return (
+      <DistanceField
+        id={inputId}
+        name={inputName}
+        value={value}
+        describedBy={describedBy}
+        onChange={onChange}
+      />
+    )
   }
 
   return (
     <TextField
+      id={inputId}
+      name={inputName}
       value={value}
       placeholder={question.promptKey}
+      autoComplete="off"
+      describedBy={describedBy}
       onChange={onChange}
     />
   )

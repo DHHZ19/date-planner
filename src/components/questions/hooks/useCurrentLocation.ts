@@ -6,9 +6,8 @@ type LocationCoordinates = {
 }
 
 export function useCurrentLocation() {
-  const [currentPosition, setCurrentPosition] = useState<LocationCoordinates | null>(
-    null,
-  )
+  const [currentPosition, setCurrentPosition] =
+    useState<LocationCoordinates | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
 
   useEffect(() => {
