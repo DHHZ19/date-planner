@@ -7,16 +7,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-echo "Running post-coding fixes (Prettier + Tailwind class sort + ESLint --fix)..."
+echo "Running post-coding fixes (Prettier + ESLint --fix)..."
 
 # npm run check runs: prettier --write . && eslint --fix
 npm run check
 
 echo ""
-echo "Validating Tailwind CSS syntax..."
+echo "Verifying all lint checks pass..."
 
-# Run custom Tailwind validation
-bash .opencode/validate-tailwind.sh || { echo "❌ Tailwind validation failed"; exit 1; }
+# Verify no remaining issues
+npm run lint
 
-echo ""
-echo "Post-coding fixes complete!"
+echo "✅ Post-coding fixes complete!"
