@@ -98,7 +98,7 @@ body {
   margin: 0;
   color: var(--sea-ink);
   font-family: var(--font-sans);
-  background-color: var(--bg-base);
+  background-color: var(--ui-bg);
   background:
     radial-gradient(1100px 620px at -8% -10%, var(--hero-a), transparent 58%),
     radial-gradient(1050px 620px at 112% -12%, var(--hero-b), transparent 62%),
@@ -111,7 +111,7 @@ body {
       180deg,
       color-mix(in oklab, var(--sand) 68%, white) 0%,
       var(--foam) 44%,
-      var(--bg-base) 100%
+      var(--ui-bg) 100%
     );
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
