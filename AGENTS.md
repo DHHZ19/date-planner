@@ -26,6 +26,7 @@ NEVER RUN THE LOCAL INSTANCE YOURSELF; ONLY THE USER SHOULD START/RUN IT.
 ## Style guide
 
 - **Read `STYLE_GUIDE.md` before creating or modifying any UI component.** It documents the color tokens, component patterns (cards, chips, buttons, inputs, alerts), layout grid, and animation conventions used across the app.
+- **Reference `TAILWIND_STYLE_REFERENCE.md` for pre-approved Tailwind class patterns.** This document contains extracted Tailwind classes from tested UI components including form inputs, cards, buttons, tables, and layout patterns. Use these patterns for consistent styling.
 - Prefer semantic CSS custom properties (`--ui-text`, `--ui-surface`, `--love-700`, etc.) over raw hex values so dark mode works automatically.
 - Selectable chips (dateTime, priceLevel, distance presets) share an identical selected/unselected style; copy the pattern from an existing chip component rather than inventing new styles.
 
