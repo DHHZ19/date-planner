@@ -85,6 +85,8 @@ X-Goog-FieldMask: *
 > [!NOTE]
 > While wildcard is fine in development, Google discourages wildcard in production because it may return large payloads.
 
+For a complete field catalog by SKU tier, see [Place Data Fields (New)](./place-data-fields-new.md).
+
 You can request fields across these billing tiers:
 
 - Nearby Search Pro SKU fields include:
