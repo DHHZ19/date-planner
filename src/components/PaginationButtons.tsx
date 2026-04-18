@@ -3,7 +3,9 @@ import { Link, useSearch } from '@tanstack/react-router'
 const PaginationButtons = ({ lastPage }: { lastPage: number }) => {
   const search = useSearch({ from: '/' })
   const paginationButtonClassName =
-    'inline-flex min-h-11 items-center justify-center rounded-2xl border border-rose-800 bg-rose-700 px-5 py-2.5 text-sm font-semibold tracking-wide text-white! no-underline shadow-[0_14px_32px_-16px_rgba(159,18,57,0.9)] transition duration-200 hover:-translate-y-0.5 hover:bg-rose-600 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-700'
+    'inline-flex cursor-pointer min-h-11 items-center justify-center rounded-md border border-[var(--ui-border)] bg-[var(--ui-surface)] px-5 py-2.5 text-sm font-semibold tracking-wide text-[var(--ui-text)]! no-underline shadow-[0_14px_24px_-22px_rgba(126,31,61,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:bg-[var(--ui-surface-soft)] active:translate-y-0 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]'
+  const primaryButtonClassName =
+    'inline-flex cursor-pointer min-h-11 items-center justify-center rounded-md border border-[#6c1834] bg-gradient-to-r from-[#a33a4a] to-[#7e1f3d] px-5 py-2.5 text-sm font-semibold tracking-wide text-white! shadow-[0_18px_30px_-18px_rgba(126,31,61,0.62)] transition duration-200 hover:-translate-y-0.5 hover:from-[#8e2f43] hover:to-[#6c1834] active:translate-y-0 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#6c1834]'
 
   return (
     <>
@@ -20,7 +22,7 @@ const PaginationButtons = ({ lastPage }: { lastPage: number }) => {
         </Link>
 
         <Link
-          className={paginationButtonClassName}
+          className={primaryButtonClassName}
           to="."
           search={(prev) => ({
             ...prev,
@@ -34,7 +36,7 @@ const PaginationButtons = ({ lastPage }: { lastPage: number }) => {
       {search.step === lastPage && (
         <button
           type="submit"
-          className={`mt-4 cursor-pointer ${paginationButtonClassName}`}
+          className={`mt-4 w-full cursor-pointer ${primaryButtonClassName}`}
         >
           Submit
         </button>
