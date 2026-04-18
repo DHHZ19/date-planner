@@ -13,6 +13,7 @@ export default function QuestionFieldRenderer({
   describedBy,
   value,
   selectedCsvValues,
+  resetKey,
   onChange,
   onToggleCsvValue,
 }: {
@@ -22,6 +23,7 @@ export default function QuestionFieldRenderer({
   describedBy?: string
   value: string | undefined
   selectedCsvValues: string[]
+  resetKey: number | string
   onChange: (value: string | undefined) => void
   onToggleCsvValue: (value: string) => void
 }) {
@@ -64,9 +66,10 @@ export default function QuestionFieldRenderer({
 
   return (
     <TextField
+      key={`${inputId}-${resetKey}`}
       id={inputId}
       name={inputName}
-      value={value}
+      defaultValue={value}
       placeholder={question.promptKey}
       autoComplete="off"
       describedBy={describedBy}
