@@ -10,7 +10,6 @@ const DEBOUNCED_QUERY_KEYS: ReadonlySet<AnswerKey> = new Set([
   'activitySetting',
   'dateVibe',
   'food',
-  'distance',
 ])
 
 const URL_UPDATE_DEBOUNCE_MS = 200

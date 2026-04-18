@@ -26,7 +26,7 @@ function App() {
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(125%_125%_at_top_right,rgba(255,255,255,0.96),rgba(255,255,255,0)_58%)]" />
         <div className="pointer-events-none absolute inset-y-0 right-[-22%] -z-10 hidden w-80 bg-[radial-gradient(65%_65%_at_50%_18%,rgba(200,106,106,0.22),rgba(200,106,106,0)_82%)] lg:block" />
         <div className="pointer-events-none absolute bottom-[-26%] -left-16 -z-10 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(126,31,61,0.12),rgba(126,31,61,0)_70%)]" />
-        <h1 className="text-4xl font-semibold tracking-tight text-[var(--ui-text)] sm:text-5xl">
+        <h1 className="text-4xl font-semibold tracking-tight text-[var(--love-700)] sm:text-5xl">
           Date Planner
         </h1>
         <p className="mt-2 text-base/7 text-[var(--ui-text-muted)] sm:text-lg/8">

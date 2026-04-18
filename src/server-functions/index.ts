@@ -366,15 +366,9 @@ const refinePlacesWithAI = async ({
 
     const rankedPlaceIds = parseRankedPlaceIdsFromOutput(response.output)
 
-    const ranked = rankedPlaceIds.slice(0, 3)
-    console.log(ranked)
-
-    if (rankedPlaceIds.length === 0 || ranked.length === 0) {
+    if (rankedPlaceIds.length === 0) {
       return places
     }
-
-    return places.filter((place) => ranked.some((p) => place.id === p.id))
-    return []
 
     const placeById = new Map(places.map((place) => [place.id, place]))
 
