@@ -16,6 +16,10 @@ NEVER RUN THE LOCAL INSTANCE YOURSELF; ONLY THE USER SHOULD START/RUN IT.
 - Format check only: `npm run format`
 - Auto-fix formatter+lint: `npm run check` (runs `prettier --write .` then `eslint --fix`)
 
+## Agent hooks
+
+- **Post-coding hook**: Run `./.opencode/post-agent-hook.sh` or `bash .opencode/post-agent-hook.sh` after finishing coding to automatically run prettier and eslint --fix.
+
 ## Env + secrets
 
 - `npm run dev` is wrapped with 1Password CLI: `op run --env-file .env -- vite dev --port 3000`.
