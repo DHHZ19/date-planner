@@ -12,4 +12,11 @@ echo "Running post-coding fixes (Prettier + Tailwind class sort + ESLint --fix).
 # npm run check runs: prettier --write . && eslint --fix
 npm run check
 
-echo "Post-coding fixes complete."
+echo ""
+echo "Validating Tailwind CSS syntax..."
+
+# Run custom Tailwind validation
+bash .opencode/validate-tailwind.sh || { echo "❌ Tailwind validation failed"; exit 1; }
+
+echo ""
+echo "Post-coding fixes complete!"

@@ -36,7 +36,7 @@ export default function DistanceField({
               type="button"
               className={[
                 'rounded-md border px-3 py-2 text-center transition duration-200',
-                'focus:ring-2 focus:ring-[var(--love-300)] focus:ring-offset-2 focus:ring-offset-[var(--ui-surface)]/70 focus:outline-none',
+                'focus:ring-2 focus:ring-(--love-300) focus:ring-offset-2 focus:ring-offset-(--ui-surface)/70 focus:outline-none',
                 selected
                   ? 'border-[#6c1834] bg-gradient-to-b from-[#a33a4a] to-[#7e1f3d] text-white shadow-[0_12px_28px_-16px_rgba(126,31,61,0.62)]'
                   : 'border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)] hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:bg-[var(--ui-surface-soft)]',
