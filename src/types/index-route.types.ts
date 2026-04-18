@@ -20,7 +20,13 @@ export type DatePlanResponse = ValidateSerializableInput<
   }
 >
 
-export type DateTimeOption = 'Morning' | 'Afternoon' | 'Now' | 'Anytime'
+export type DateTimeOption =
+  | 'Morning'
+  | 'Afternoon'
+  | 'Evening'
+  | 'Late Night'
+  | 'Now'
+  | 'Anytime'
 
 export type AnswerKey =
   | 'dateTime'
