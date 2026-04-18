@@ -36,10 +36,10 @@ export default function DistanceField({
               type="button"
               className={[
                 'rounded-md border px-3 py-2 text-center transition duration-200',
-                'focus:ring-2 focus:ring-[#2d513f] focus:ring-offset-2 focus:ring-offset-[var(--ui-surface)]/70 focus:outline-none',
+                'focus:ring-2 focus:ring-[var(--love-300)] focus:ring-offset-2 focus:ring-offset-[var(--ui-surface)]/70 focus:outline-none',
                 selected
                   ? 'border-[#6c1834] bg-gradient-to-b from-[#a33a4a] to-[#7e1f3d] text-white shadow-[0_12px_28px_-16px_rgba(126,31,61,0.62)]'
-                  : 'border-[#355e4a] bg-[#edf4ef] text-[#1f2d28] hover:-translate-y-0.5 hover:border-[#2d513f] hover:bg-[#dde9e2]',
+                  : 'border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)] hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:bg-[var(--ui-surface-soft)]',
               ].join(' ')}
               onClick={() => onChange(preset.value)}
             >
@@ -47,7 +47,7 @@ export default function DistanceField({
                 {preset.label}
               </span>
               <span
-                className={`mt-0.5 block text-[11px] ${selected ? 'text-white/80' : 'text-[#1f2d28]/60'}`}
+                className={`mt-0.5 block text-[11px] ${selected ? 'text-white/80' : 'text-[var(--ui-text-muted)]'}`}
               >
                 {preset.value} mi
               </span>

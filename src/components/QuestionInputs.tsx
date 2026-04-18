@@ -46,7 +46,10 @@ export const QuestionInputs = ({
       />
 
       {(locationError || submitError) && (
-        <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <p
+          className="mt-4 rounded-md border border-[var(--love-300)] bg-[var(--love-050)]/96 px-4 py-3 text-sm text-[var(--ui-danger)]"
+          role="alert"
+        >
           {submitError ?? locationError}
         </p>
       )}

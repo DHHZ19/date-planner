@@ -45,7 +45,7 @@ export default function QuestionForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="relative isolate overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-gradient-to-br from-[var(--ui-surface)]/94 via-[var(--love-050)]/74 to-[var(--ui-surface-soft)]/92 p-6 shadow-[0_24px_60px_-32px_rgba(53,94,74,0.34)] backdrop-blur-sm sm:p-8"
+      className="relative isolate overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-gradient-to-br from-[var(--ui-surface)]/94 via-[var(--love-050)]/74 to-[var(--ui-surface-soft)]/92 p-6 shadow-[0_24px_60px_-32px_rgba(126,31,61,0.22)] backdrop-blur-sm sm:p-8"
     >
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(100%_100%_at_top_right,rgba(255,255,255,0.97),rgba(255,255,255,0)_64%)]" />
       <div className="pointer-events-none absolute inset-y-0 right-[-20%] -z-10 hidden w-72 bg-[radial-gradient(60%_60%_at_50%_10%,rgba(200,106,106,0.18),rgba(200,106,106,0)_80%)] lg:block" />
