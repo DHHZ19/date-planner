@@ -1,5 +1,6 @@
 import PaginationButtons from '#/components/PaginationButtons'
 import QuestionFieldRenderer from '#/components/questions/QuestionFieldRenderer'
+import StepIndicator from '#/components/StepIndicator'
 import { QUESTION_FIELD_CONFIGS } from '#/components/questions/question-config'
 import {
   fieldHintClassName,
@@ -39,9 +40,6 @@ export default function QuestionForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   isSubmitting: boolean
 }) {
-  const sectionTitle =
-    currentSection.page === 1 ? 'Date basics' : 'Mood and activity details'
-
   return (
     <form
       onSubmit={onSubmit}
@@ -50,14 +48,18 @@ export default function QuestionForm({
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(100%_100%_at_top_right,rgba(255,255,255,0.97),rgba(255,255,255,0)_64%)]" />
       <div className="pointer-events-none absolute inset-y-0 right-[-20%] -z-10 hidden w-72 bg-[radial-gradient(60%_60%_at_50%_10%,rgba(200,106,106,0.18),rgba(200,106,106,0)_80%)] lg:block" />
 
-      <h3 className="text-2xl font-semibold tracking-tight text-[var(--ui-text)] sm:text-3xl">
-        {sectionTitle}
-      </h3>
-      <p className="mt-2 text-sm/6 text-[var(--ui-text-muted)]">
+      {/* Step indicator */}
+      <StepIndicator
+        currentPage={currentSection.page}
+        totalPages={lastPage}
+        currentSection={currentSection}
+      />
+
+      <p className="mb-6 text-sm/6 text-[var(--ui-text-muted)]">
         Fill this step to keep date recommendations personalized.
       </p>
 
-      <div className="mt-8 grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
         {currentSection.questions.map((question) => {
           const fieldConfig: QuestionFieldConfig =
             QUESTION_FIELD_CONFIGS[question.promptKey]
@@ -107,12 +109,12 @@ export default function QuestionForm({
         })}
       </div>
 
-      <PaginationButtons lastPage={lastPage} />
-      {isSubmitting && (
-        <p className="mt-4 text-sm font-medium text-[var(--love-700)]">
-          Loading suggestions...
-        </p>
-      )}
+      <PaginationButtons
+        currentSection={currentSection}
+        lastPage={lastPage}
+        getFieldValue={getFieldValue}
+        isSubmitting={isSubmitting}
+      />
     </form>
   )
 }
