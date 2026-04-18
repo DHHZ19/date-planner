@@ -72,7 +72,7 @@ export default function Header() {
             Docs
           </a>
           <details className="relative w-full sm:w-auto">
-            <summary className="nav-link list-none cursor-pointer">
+            <summary className="nav-link cursor-pointer list-none">
               Demos
             </summary>
             <div className="mt-2 min-w-56 rounded-xl border border-[var(--line)] bg-[var(--header-bg)] p-2 shadow-lg sm:absolute sm:right-0">
