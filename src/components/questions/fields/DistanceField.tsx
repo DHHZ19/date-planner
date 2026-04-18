@@ -35,11 +35,11 @@ export default function DistanceField({
               key={preset.value}
               type="button"
               className={[
-                'rounded-md border px-3 py-2 text-center transition duration-200',
+                'cursor-pointer rounded-md border px-3 py-2 text-center transition duration-200',
                 'focus:ring-2 focus:ring-(--love-300) focus:ring-offset-2 focus:ring-offset-(--ui-surface)/70 focus:outline-none',
                 selected
-                  ? 'border-[#6c1834] bg-gradient-to-b from-[#a33a4a] to-[#7e1f3d] text-white shadow-[0_12px_28px_-16px_rgba(126,31,61,0.62)]'
-                  : 'border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)] hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:bg-[var(--ui-surface-soft)]',
+                  ? 'border-[#6c1834] bg-linear-to-b from-[#a33a4a] to-[#7e1f3d] text-white shadow-[0_12px_28px_-16px_rgba(126,31,61,0.62)]'
+                  : 'border-(--ui-border) bg-(--ui-surface) text-(--ui-text) hover:-translate-y-0.5 hover:border-(--love-300) hover:bg-(--ui-surface-soft)',
               ].join(' ')}
               onClick={() => onChange(preset.value)}
             >
@@ -47,7 +47,7 @@ export default function DistanceField({
                 {preset.label}
               </span>
               <span
-                className={`mt-0.5 block text-[11px] ${selected ? 'text-white/80' : 'text-[var(--ui-text-muted)]'}`}
+                className={`mt-0.5 block text-[11px] ${selected ? 'text-white/80' : 'text-(--ui-text-muted)'}`}
               >
                 {preset.value} mi
               </span>
@@ -58,9 +58,9 @@ export default function DistanceField({
 
       {/* Slider */}
       <div>
-        <div className="flex items-center justify-between text-xs text-[var(--ui-text-muted)]">
+        <div className="flex items-center justify-between text-xs text-(--ui-text-muted)">
           <span>{MIN_MILES} mi</span>
-          <span className="font-semibold text-[var(--ui-text)]">
+          <span className="font-semibold text-(--ui-text)">
             {numericValue != null
               ? `Within ${numericValue} miles`
               : 'Choose a distance'}
