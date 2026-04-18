@@ -22,6 +22,16 @@ const GOOGLE_FIELD_MASK =
 const MILES_TO_METERS = 1609.344
 type QueryKind = 'restaurant' | 'activity'
 
+const GOOGLE_TEXT_FIELD_PROMPT_SUFFIX: Record<
+  'food' | 'activityTypes' | 'activitySetting' | 'dateVibe',
+  string
+> = {
+  food: 'food',
+  activityTypes: 'activity types',
+  activitySetting: 'activity setting',
+  dateVibe: 'date vibe',
+}
+
 /**
  * Time ranges (24-hour) used to determine if a place is open during a given
  * date-time slot. We check whether the place's opening hours overlap with the
@@ -157,6 +167,21 @@ const filterPlacesByRating = (places: NearbyPlace[]) => {
 
 const buildTextQuery = (search: string) => {
   return search.trim()
+}
+
+const formatGoogleQueryTextField = ({
+  promptType,
+  value,
+}: {
+  promptType: keyof typeof GOOGLE_TEXT_FIELD_PROMPT_SUFFIX
+  value: string | undefined
+}) => {
+  const trimmedValue = value?.trim()
+  if (!trimmedValue) {
+    return ''
+  }
+
+  return `${trimmedValue} (${GOOGLE_TEXT_FIELD_PROMPT_SUFFIX[promptType]})`
 }
 
 type RefinementSettings = {
@@ -537,8 +562,14 @@ export const getDatePlan = createServerFn({ method: 'POST' })
         ? parsedPriceLevels.data
         : undefined
 
-      const restaurantQuery = data.searchState.food?.trim() ?? ''
-      const activityQuery = data.searchState.activityTypes?.trim() ?? ''
+      const restaurantQuery = formatGoogleQueryTextField({
+        promptType: 'food',
+        value: data.searchState.food,
+      })
+      const activityQuery = formatGoogleQueryTextField({
+        promptType: 'activityTypes',
+        value: data.searchState.activityTypes,
+      })
 
       const [restaurants, activities] = await Promise.all([
         restaurantQuery.length > 0
