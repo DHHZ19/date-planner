@@ -2,9 +2,9 @@
 
 import { createFileRoute } from '@tanstack/react-router'
 import { QuestionInputs } from '#/components/QuestionInputs'
+import { QUESTION_SECTIONS } from '#/components/questions/question-config'
 import type {
   AnswerKey,
-  QuestionSection,
   SearchState,
 } from '../types/index-route.types'
 
@@ -33,52 +33,11 @@ export const Route = createFileRoute('/')({
 function App() {
   const search = Route.useSearch()
 
-  const questions: QuestionSection[] = [
-    {
-      page: 1,
-      questions: [
-        {
-          prompt: 'What time are you planning to go on your date?',
-          promptKey: 'dateTime',
-        },
-        {
-          prompt: 'What kind of food are you feeling?',
-          promptKey: 'food',
-        },
-        {
-          prompt: 'Distance (in miles)',
-          promptKey: 'distance',
-        },
-        {
-          prompt: 'Price Level',
-          promptKey: 'priceLevel',
-        },
-      ],
-    },
-    {
-      page: 2,
-      questions: [
-        {
-          prompt: 'What activities would you like to do on this date?',
-          promptKey: 'activityTypes',
-        },
-        {
-          prompt: 'Do you prefer indoor, outdoor, or a mix of activities?',
-          promptKey: 'activitySetting',
-        },
-        {
-          prompt:
-            'Would you like the date to be relaxed, adventurous, or romantic?',
-          promptKey: 'dateVibe',
-        },
-      ],
-    },
-  ]
-
   const currentPage = search.step
   const currentSection =
-    questions.find(({ page }) => page === currentPage) ?? questions[0]
-  const lastPage = questions.length
+    QUESTION_SECTIONS.find(({ page }) => page === currentPage) ??
+    QUESTION_SECTIONS[0]
+  const lastPage = QUESTION_SECTIONS.length
 
   return (
     <main className="page-wrap px-4 pb-8 pt-14">
