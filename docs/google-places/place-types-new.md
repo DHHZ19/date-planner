@@ -11,29 +11,52 @@ Select platform: [Android](https://developers.google.com/maps/documentation/plac
 
 ## Introduction
 
-**Place types** are categories that identify the characteristics of a place. A place can have one or more place types assigned to it.
+**Place types** are categories that identify the characteristics of a place.
+A place can have one or more place types assigned to it.
 
-A place's types are included in the **response** from Place Details (New), Nearby Search (New), Text Search (New), and Autocomplete (New):
+A place's types are included in the **response** from a
+Place Details (New),
+Nearby Search (New), Text Search (New), and Autocomplete (New) request:
 
-- A place can have a **single primary type** from [Table A](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a) or [Table B](https://developers.google.com/maps/documentation/places/web-service/place-types#table-b).
-- A place can have **multiple type values** from [Table A](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a) or [Table B](https://developers.google.com/maps/documentation/places/web-service/place-types#table-b).
-- Address and address components may be tagged with [Address types and address component types](https://developers.google.com/maps/documentation/places/web-service/place-types#address-types).
+- A place can have a **single primary type** from type [Table A](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a) or type [Table B](https://developers.google.com/maps/documentation/places/web-service/place-types#table-b) associated with it. For example, the **primary type** might be `mexican_restaurant` or `steak_house`.The **primary type** may be missing if the place's primary type is not a supported type. When a **primary type** is present, it is always one of the **types** in the `types` field.
+- A place can have **multiple type values** from type [Table A](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a) or type [Table B](https://developers.google.com/maps/documentation/places/web-service/place-types#table-b) associated with it. For example a restaurant might have the following **types** : `seafood_restaurant`, `restaurant`, `food`, `point_of_interest`, `establishment`.
+- The address and address components of a place can be tagged with certain types from the [Address types and address component types](https://developers.google.com/maps/documentation/places/web-service/place-types#address-types) table. For example, an address might be tagged as an `street_address` and a component of the address might be tagged as a `street_number`.
 
-You can also specify place types as part of a **request**. When specified in the request, the type acts as a filter.
+You can also specify place types as part of a **request**. When specified in the
+request, the type acts as a filter to restrict the response to only include
+places that match the specified types.
 
 ## About the type tables
 
-[**Table A**](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a) values are used:
+[**Table A**](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a) lists the types that are used in the
+following ways:
 
-- In Place Details (New), Nearby Search (New), and Text Search (New) responses (when `places.types` or `places.primaryType` is requested in field mask).
-- In Nearby Search (New) request filters: `includedTypes`, `excludedTypes`, `includedPrimaryTypes`, `excludedPrimaryTypes`.
-- In Text Search (New) request filter: `includedType`.
-- In Autocomplete (New) request filter: `includedPrimaryTypes`.
-- In Autocomplete (New) responses.
+- As part of a response from Place Details (New), Nearby Search (New), and Text Search (New). The request must specify at least one of the `places.types` or `places.primaryType` fields in the field mask. The values in Table A are then used to populate those fields.
+- As part of a Nearby Search (New) request, used as the value of the `includedTypes`, `excludedTypes`, `includedPrimaryTypes`, and `excludedPrimaryTypes` parameter. The values in Table B are then used to populate those fields.
+- As part of a Text Search (New) request, used as the value of the `includedType` parameter.
+- As part of an Autocomplete (New) request, use as the values to the `includedPrimaryTypes` parameter.
+- As part of an Autocomplete (New) response.
 
-[**Table B**](https://developers.google.com/maps/documentation/places/web-service/place-types#table-b) values may be returned in responses for Place Details (New), Nearby Search (New), Text Search (New), and Autocomplete (New). They are not generally valid request filter values (except for Autocomplete `includedPrimaryTypes`).
+[**Table B**](https://developers.google.com/maps/documentation/places/web-service/place-types#table-b) lists additional place type values which
+may also be returned as part of a Place Details (New),
+Nearby Search (New),
+Text Search (New), and
+Autocomplete (New) response. The request
+must specify at least one of the `places.types` or
+`places.primaryType`
+fields in the field mask. Values from Table B may NOT be used as part of a
+request, except as the values to the `includedPrimaryTypes` parameter
+for a Autocomplete (New) request.
 
-[**Table C**](https://developers.google.com/maps/documentation/places/web-service/place-types#table-c) lists type collections usable as `includedPrimaryTypes` in Autocomplete (New) requests.
+[**Table C**](https://developers.google.com/maps/documentation/places/web-service/place-types#table-c) lists type collections that can be
+used as the value of the `includedPrimaryTypes` parameter in an
+Autocomplete (New) request. Type collections can't be specified with any
+other type values.
+
+[**Address types and address component types**](https://developers.google.com/maps/documentation/places/web-service/place-types#address-types)
+list types that may appear in either or both address type and address component
+type arrays in the response body. Address component types are subject to
+change.
 
 ### Table A
 
@@ -81,48 +104,63 @@ Type collections can be used as the `includedPrimaryTypes` value in Autocomplete
 
 ### Address types and address component types
 
-The `types` array in the response indicates the _address type_. The `types` array in `AddressComponent` indicates each part type.
+The `types` array in the response indicates the
+_address type_. Examples of address types include a street address, a
+country, or a political entity. The `types` array in
+the `AddressComponent` field indicates the type of each part of the
+address. Examples include street number or country.
 
-The following are supported in both address type and address component type arrays:
+Addresses may have multiple types. The types may be considered 'tags'.
+For example, many cities are tagged with the `political` and
+`locality` types.
 
-| Address Type                  | Description                                        |
-| ----------------------------- | -------------------------------------------------- |
-| `street_address`              | A precise street address.                          |
-| `route`                       | A named route (such as "US 101").                  |
-| `intersection`                | A major intersection, usually of two major roads.  |
-| `political`                   | A political entity.                                |
-| `country`                     | The national political entity.                     |
-| `administrative_area_level_1` | First-order civil entity below country level.      |
-| `administrative_area_level_2` | Second-order civil entity below country level.     |
-| `administrative_area_level_3` | Third-order civil entity below country level.      |
-| `administrative_area_level_4` | Fourth-order civil entity below country level.     |
-| `administrative_area_level_5` | Fifth-order civil entity below country level.      |
-| `administrative_area_level_6` | Sixth-order civil entity below country level.      |
-| `administrative_area_level_7` | Seventh-order civil entity below country level.    |
-| `colloquial_area`             | Commonly-used alternative name for an entity.      |
-| `locality`                    | Incorporated city or town political entity.        |
-| `sublocality`                 | First-order civil entity below locality.           |
-| `neighborhood`                | A named neighborhood.                              |
-| `premise`                     | Named location, often building/complex.            |
-| `subpremise`                  | Addressable entity below premise, e.g. unit/suite. |
-| `plus_code`                   | Encoded location reference from lat/long.          |
-| `postal_code`                 | Postal code used for mail.                         |
-| `natural_feature`             | A prominent natural feature.                       |
-| `airport`                     | An airport.                                        |
-| `park`                        | A named park.                                      |
-| `point_of_interest`           | A named point of interest.                         |
+The following types are supported and returned in both the
+address type and address component type arrays:
 
-Additional address component types may include:
+| Address Type                  | Description                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `street_address`              | A precise street address.                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `route`                       | A named route (such as "US 101").                                                                                                                                                                                                                                                                                                                                                                                              |
+| `intersection`                | A major intersection, usually of two major roads.                                                                                                                                                                                                                                                                                                                                                                              |
+| `political`                   | A political entity. Usually, this type indicates a polygon of some civil administration.                                                                                                                                                                                                                                                                                                                                       |
+| `country`                     | The national political entity, and is typically the highest order type returned by the Geocoder.                                                                                                                                                                                                                                                                                                                               |
+| `administrative_area_level_1` | A first-order civil entity below the country level. Within the United States, these administrative levels are states. Not all nations exhibit these administrative levels. In most cases, `administrative_area_level_1` short names will closely match ISO 3166-2 subdivisions and other widely circulated lists; however this is not guaranteed as our geocoding results are based on a variety of signals and location data. |
+| `administrative_area_level_2` | A second-order civil entity below the country level. Within the United States, these administrative levels are counties. Not all nations exhibit these administrative levels.                                                                                                                                                                                                                                                  |
+| `administrative_area_level_3` | A third-order civil entity below the country level. This type indicates a minor civil division. Not all nations exhibit these administrative levels.                                                                                                                                                                                                                                                                           |
+| `administrative_area_level_4` | A fourth-order civil entity below the country level. This type indicates a minor civil division. Not all nations exhibit these administrative levels.                                                                                                                                                                                                                                                                          |
+| `administrative_area_level_5` | A fifth-order civil entity below the country level. This type indicates a minor civil division. Not all nations exhibit these administrative levels.                                                                                                                                                                                                                                                                           |
+| `administrative_area_level_6` | A sixth-order civil entity below the country level. This type indicates a minor civil division. Not all nations exhibit these administrative levels.                                                                                                                                                                                                                                                                           |
+| `administrative_area_level_7` | A seventh-order civil entity below the country level. This type indicates a minor civil division. Not all nations exhibit these administrative levels.                                                                                                                                                                                                                                                                         |
+| `colloquial_area`             | A commonly-used alternative name for the entity.                                                                                                                                                                                                                                                                                                                                                                               |
+| `locality`                    | An incorporated city or town political entity.                                                                                                                                                                                                                                                                                                                                                                                 |
+| `sublocality`                 | A first-order civil entity below a locality. For some locations may receive one of the additional types: `sublocality_level_1` to `sublocality_level_5`. Each sublocality level is a civil entity. Larger numbers indicate a smaller geographic area.                                                                                                                                                                          |
+| `neighborhood`                | A named neighborhood.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `premise`                     | A named location, usually a building or collection of buildings with a common name.                                                                                                                                                                                                                                                                                                                                            |
+| `subpremise`                  | An addressable entity below the premise level, such as an apartment, unit, or suite.                                                                                                                                                                                                                                                                                                                                           |
+| `plus_code`                   | An encoded location reference, derived from latitude and longitude. Plus codes can be used as a replacement for street addresses in places where they do not exist (where buildings are not numbered or streets are not named). See <https://plus.codes> for details.                                                                                                                                                          |
+| `postal_code`                 | A postal code as used to address postal mail within the country.                                                                                                                                                                                                                                                                                                                                                               |
+| `natural_feature`             | A prominent natural feature.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `airport`                     | An airport.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `park`                        | A named park.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `point_of_interest`           | A named point of interest. Typically, these "POI"s are prominent local entities that don't easily fit in another category, such as "Empire State Building" or "Eiffel Tower".                                                                                                                                                                                                                                                  |
 
-| Address Component Type                            | Description                                                     |
-| ------------------------------------------------- | --------------------------------------------------------------- |
-| `floor`                                           | The floor of a building address.                                |
-| `establishment`                                   | Place not yet categorized.                                      |
-| `landmark`                                        | Nearby place used as navigation reference.                      |
-| `point_of_interest`                               | A named point of interest.                                      |
-| `parking`                                         | Parking lot or structure.                                       |
-| `post_box`                                        | A specific postal box.                                          |
-| `postal_town`                                     | Grouping of areas used for mailing addresses in some countries. |
-| `room`                                            | The room of a building address.                                 |
-| `street_number`                                   | Precise street number.                                          |
-| `bus_station`, `train_station`, `transit_station` | Public transit stop location.                                   |
+An empty list of types indicates there are no known types for the particular
+address component (for example, Lieu-dit in France).
+
+In addition to the above, address components may include the types listed below.
+
+> [!NOTE]
+> **Note:** This list is not exhaustive, and is subject to change.
+
+| Address Component Type                               | Description                                                                                                         |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `floor`                                              | The floor of a building address.                                                                                    |
+| `establishment`                                      | Typically a place that has not yet been categorized.                                                                |
+| `landmark`                                           | A nearby place that is used as a reference, to aid navigation.                                                      |
+| `point_of_interest`                                  | A named point of interest.                                                                                          |
+| `parking`                                            | A parking lot or parking structure.                                                                                 |
+| `post_box`                                           | A specific postal box.                                                                                              |
+| `postal_town`                                        | A grouping of geographic areas, such as `locality` and `sublocality`, used for mailing addresses in some countries. |
+| `room`                                               | The room of a building address.                                                                                     |
+| `street_number`                                      | The precise street number.                                                                                          |
+| `bus_station`, `train_station` and `transit_station` | The location of a bus, train or public transit stop.                                                                |

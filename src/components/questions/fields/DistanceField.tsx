@@ -78,7 +78,7 @@ export default function DistanceField({
           aria-valuetext={
             numericValue != null ? `${numericValue} miles` : undefined
           }
-          className="mt-1 w-full cursor-pointer accent-[#7e1f3d] transition-all duration-150 ease-out"
+          className="mt-1 w-full cursor-pointer accent-[#7e1f3d]"
           value={displayValue}
           onChange={(event) => {
             const next = event.target.value

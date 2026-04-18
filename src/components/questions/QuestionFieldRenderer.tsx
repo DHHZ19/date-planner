@@ -2,6 +2,7 @@ import DateTimeField from '#/components/questions/fields/DateTimeField'
 import DistanceField from '#/components/questions/fields/DistanceField'
 import PriceLevelField from '#/components/questions/fields/PriceLevelField'
 import TextField from '#/components/questions/fields/TextField'
+import ActivityTypeAutocompleteField from '#/components/questions/fields/ActivityTypeAutocompleteField'
 import { QUESTION_FIELD_CONFIGS } from './question-config'
 
 import type { Question } from '#/types/index-route.types'
@@ -28,6 +29,20 @@ export default function QuestionFieldRenderer({
   onToggleCsvValue: (value: string) => void
 }) {
   const fieldConfig = QUESTION_FIELD_CONFIGS[question.promptKey]
+
+  if (question.promptKey === 'activityTypes') {
+    return (
+      <ActivityTypeAutocompleteField
+        id={inputId}
+        name={inputName}
+        defaultValue={value}
+        describedBy={describedBy}
+        placeholder={question.prompt}
+        resetKey={resetKey}
+        onChange={onChange}
+      />
+    )
+  }
 
   if (fieldConfig.fieldType === 'dateTime') {
     return (
