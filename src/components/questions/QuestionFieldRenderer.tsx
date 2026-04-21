@@ -3,6 +3,7 @@ import DistanceField from '#/components/questions/fields/DistanceField'
 import PriceLevelField from '#/components/questions/fields/PriceLevelField'
 import TextField from '#/components/questions/fields/TextField'
 import ActivityTypeAutocompleteField from '#/components/questions/fields/ActivityTypeAutocompleteField'
+import FoodAutocompleteField from '#/components/questions/fields/FoodAutocompleteField'
 import { QUESTION_FIELD_CONFIGS } from './question-config'
 
 import type { Question } from '#/types/index-route.types'
@@ -33,6 +34,20 @@ export default function QuestionFieldRenderer({
   if (question.promptKey === 'activityTypes') {
     return (
       <ActivityTypeAutocompleteField
+        id={inputId}
+        name={inputName}
+        defaultValue={value}
+        describedBy={describedBy}
+        placeholder={question.prompt}
+        resetKey={resetKey}
+        onChange={onChange}
+      />
+    )
+  }
+
+  if (question.promptKey === 'food') {
+    return (
+      <FoodAutocompleteField
         id={inputId}
         name={inputName}
         defaultValue={value}

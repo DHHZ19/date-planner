@@ -18,7 +18,7 @@ import type {
 import OpenAI from 'openai'
 
 const GOOGLE_FIELD_MASK =
-  'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.websiteUri,places.photos,places.priceLevel,places.priceRange,places.rating,places.userRatingCount'
+  'places.id,places.displayName,places.types,places.primaryType,places.businessStatus,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.websiteUri,places.photos,places.priceLevel,places.priceRange,places.rating,places.userRatingCount,places.generativeSummary,places.editorialSummary,places.reviewSummary'
 const MILES_TO_METERS = 1609.344
 type QueryKind = 'restaurant' | 'activity'
 
@@ -182,6 +182,33 @@ const formatGoogleQueryTextField = ({
   }
 
   return `${trimmedValue} (${GOOGLE_TEXT_FIELD_PROMPT_SUFFIX[promptType]})`
+}
+
+const extractPlaceSummary = (place: NearbyPlace) => {
+  const generativeSummary = place.generativeSummary as
+    | { overview?: { text?: string | null } | null }
+    | undefined
+  const editorialSummary = place.editorialSummary as
+    | { text?: string | null }
+    | undefined
+  const reviewSummary = place.reviewSummary as
+    | { summary?: { text?: string | null } | null }
+    | undefined
+
+  const generativeText =
+    typeof generativeSummary?.overview?.text === 'string'
+      ? generativeSummary.overview.text.trim()
+      : ''
+  const editorialText =
+    typeof editorialSummary?.text === 'string'
+      ? editorialSummary.text.trim()
+      : ''
+  const reviewText =
+    typeof reviewSummary?.summary?.text === 'string'
+      ? reviewSummary.summary.text.trim()
+      : ''
+
+  return generativeText || editorialText || reviewText || null
 }
 
 type RefinementSettings = {
@@ -350,7 +377,10 @@ const refinePlacesWithAI = async ({
     rating: place.rating ?? null,
     userRatingCount: place.userRatingCount ?? null,
     priceLevel: place.priceLevel ?? null,
+    summary: extractPlaceSummary(place),
   }))
+
+  console.log('AI refinement candidates with summaries:', candidatePlaces)
 
   try {
     const client = new OpenAI({ apiKey })
@@ -360,8 +390,11 @@ const refinePlacesWithAI = async ({
               Search query: "${search}".
               Preferences: ${JSON.stringify(settings)}.
               Candidates: ${JSON.stringify(candidatePlaces)}.
-              Return only valid JSON in this exact shape: {"rankedPlaceIds":[{id: "id1", reason: reason},{id: "id2", reason: reason}]}.
-              Include only ids from candidates and order best to worst for this ${settings.queryKind} query type also add a reason.`,
+
+Each candidate includes an AI-generated summary (if available) that describes what the place offers (e.g., popular foods, services, atmosphere). Use this summary along with rating, price level, and type information to determine the best matches for the user's date preferences.
+
+Return only valid JSON in this exact shape: {"rankedPlaceIds":[{id: "id1", reason: "explanation of why this place matches"},{id: "id2", reason: "explanation"}]}.
+Include only ids from candidates and order best to worst for this ${settings.queryKind} query type.`,
     })
 
     const rankedPlaceIds = parseRankedPlaceIdsFromOutput(response.output)

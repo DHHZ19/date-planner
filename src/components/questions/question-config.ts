@@ -18,7 +18,8 @@ export const QUESTION_SECTIONS: QuestionSection[] = [
         promptKey: 'dateTime',
       },
       {
-        prompt: 'What kind of food are you feeling?',
+        prompt:
+          'What kind of food are you feeling? (type or pick from suggestions)',
         promptKey: 'food',
       },
       {
