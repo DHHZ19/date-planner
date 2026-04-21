@@ -1,7 +1,7 @@
 import AutocompleteMultiSelectField from './AutocompleteMultiSelectField'
-import { ACTIVITY_SUGGESTIONS } from '../../../constants/activity-suggestions'
+import { FOOD_SUGGESTIONS } from '../../../constants/food-suggestions'
 
-export default function ActivityTypeAutocompleteField({
+export default function FoodAutocompleteField({
   id,
   name,
   defaultValue,
@@ -25,9 +25,9 @@ export default function ActivityTypeAutocompleteField({
       defaultValue={defaultValue}
       describedBy={describedBy}
       placeholder={placeholder}
-      suggestions={ACTIVITY_SUGGESTIONS}
+      suggestions={FOOD_SUGGESTIONS}
       maxSelections={4}
-      ariaLabel="Activity type suggestions"
+      ariaLabel="Food and cuisine suggestions"
       resetKey={resetKey}
       onChange={onChange}
     />

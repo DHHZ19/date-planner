@@ -1,4 +1,13 @@
 import { DATE_TIME_OPTIONS } from '#/components/questions/question-config'
+import type { ElementType } from 'react'
+import {
+  Clock,
+  Infinity as InfinityIcon,
+  MoonStar,
+  Sunrise,
+  SunMedium,
+  Sunset,
+} from 'lucide-react'
 
 const OPTION_LABELS: Record<(typeof DATE_TIME_OPTIONS)[number], string> = {
   Now: 'Now',
@@ -7,6 +16,15 @@ const OPTION_LABELS: Record<(typeof DATE_TIME_OPTIONS)[number], string> = {
   Evening: 'Evening',
   'Late Night': 'Late Night',
   Anytime: 'Anytime',
+}
+
+const OPTION_ICONS: Record<(typeof DATE_TIME_OPTIONS)[number], ElementType> = {
+  Now: Clock,
+  Morning: Sunrise,
+  Afternoon: SunMedium,
+  Evening: Sunset,
+  'Late Night': MoonStar,
+  Anytime: InfinityIcon,
 }
 
 export default function DateTimeField({
@@ -28,6 +46,7 @@ export default function DateTimeField({
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {DATE_TIME_OPTIONS.map((option) => {
           const selected = value === option
+          const Icon = OPTION_ICONS[option]
 
           return (
             <label
@@ -48,9 +67,16 @@ export default function DateTimeField({
                 className="sr-only"
                 onChange={() => onChange(selected ? undefined : option)}
               />
-              <span className="block text-xs font-semibold tracking-wide">
-                {OPTION_LABELS[option]}
-              </span>
+              <div className="flex flex-col items-center">
+                <Icon
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                  strokeWidth={2.25}
+                />
+                <span className="mt-1 block text-[11px] leading-none font-semibold tracking-wide">
+                  {OPTION_LABELS[option]}
+                </span>
+              </div>
             </label>
           )
         })}
