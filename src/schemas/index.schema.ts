@@ -57,6 +57,19 @@ const priceLevelCsvSchema = z
   )
   .transform((values) => values?.join(','))
 
+export const activitySearchModeSchema = z.enum(['browse', 'specific'])
+
+export const activityIdeaCountSchema = z.enum(['3', '5', '8', '10'])
+
+export const activityBrowseCategorySchema = z.enum([
+  'popular_date_spots',
+  'arts_culture',
+  'outdoor_nature',
+  'games_fun',
+  'nightlife_music',
+  'unique_memorable',
+])
+
 export const searchStateSchema = z.object({
   step: stepSchema.catch(1),
   dateTime: z.preprocess(
@@ -65,6 +78,17 @@ export const searchStateSchema = z.object({
   ),
   startingArea: optionalTextSearchParamSchema.catch(undefined),
   duration: optionalTextSearchParamSchema.catch(undefined),
+  activitySearchMode: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    activitySearchModeSchema.optional().catch(undefined),
+  ),
+  activityIdeaCount: z.preprocess((value) => {
+    return value === '' ? undefined : value
+  }, activityIdeaCountSchema.optional().catch(undefined)),
+  activityBrowseCategory: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    activityBrowseCategorySchema.optional().catch(undefined),
+  ),
   activityTypes: optionalTextSearchParamSchema.catch(undefined),
   activitySetting: optionalTextSearchParamSchema.catch(undefined),
   dateVibe: optionalTextSearchParamSchema.catch(undefined),
