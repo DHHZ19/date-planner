@@ -6,6 +6,9 @@ import type { AnswerKey } from '#/types/index-route.types'
 const DEBOUNCED_QUERY_KEYS: ReadonlySet<AnswerKey> = new Set([
   'startingArea',
   'duration',
+  'activitySearchMode',
+  'activityIdeaCount',
+  'activityBrowseCategory',
   'activityTypes',
   'activitySetting',
   'dateVibe',

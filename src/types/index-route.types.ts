@@ -28,10 +28,25 @@ export type DateTimeOption =
   | 'Now'
   | 'Anytime'
 
+export type ActivitySearchMode = 'browse' | 'specific'
+
+export type ActivityIdeaCount = '3' | '5' | '8' | '10'
+
+export type ActivityBrowseCategory =
+  | 'popular_date_spots'
+  | 'arts_culture'
+  | 'outdoor_nature'
+  | 'games_fun'
+  | 'nightlife_music'
+  | 'unique_memorable'
+
 export type AnswerKey =
   | 'dateTime'
   | 'startingArea'
   | 'duration'
+  | 'activitySearchMode'
+  | 'activityIdeaCount'
+  | 'activityBrowseCategory'
   | 'activityTypes'
   | 'activitySetting'
   | 'dateVibe'

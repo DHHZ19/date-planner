@@ -1,7 +1,7 @@
 const DISTANCE_PRESETS = [
-  { label: 'Nearby', value: '2' },
-  { label: 'City-wide', value: '10' },
-  { label: 'Road Trip', value: '25' },
+  { label: 'Nearby', value: '5' },
+  { label: 'Across town', value: '15' },
+  { label: 'Further out', value: '30' },
 ] as const
 
 const MIN_MILES = 1

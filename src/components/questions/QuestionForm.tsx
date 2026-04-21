@@ -60,53 +60,74 @@ export default function QuestionForm({
       </p>
 
       <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
-        {currentSection.questions.map((question) => {
-          const fieldConfig: QuestionFieldConfig =
-            QUESTION_FIELD_CONFIGS[question.promptKey]
-          const fieldId = `question-${question.promptKey}`
-          const helperId = fieldConfig.helperText
-            ? `${fieldId}-help`
-            : undefined
+        {currentSection.questions
+          .filter((question) => {
+            const activitySearchMode = getFieldValue('activitySearchMode')
 
-          return (
-            <div
-              key={question.promptKey}
-              className={
-                fieldConfig.layout === 'full' ? 'sm:col-span-2' : undefined
-              }
-            >
-              {fieldConfig.fieldType === 'priceLevel' ||
-              fieldConfig.fieldType === 'dateTime' ? (
-                <p className={fieldLabelClassName}>{question.prompt}</p>
-              ) : (
-                <label htmlFor={fieldId} className={fieldLabelClassName}>
-                  {question.prompt}
-                </label>
-              )}
-              <div className="mt-2.5">
-                <QuestionFieldRenderer
-                  question={question}
-                  inputId={fieldId}
-                  inputName={question.promptKey}
-                  describedBy={helperId}
-                  value={getFieldValue(question.promptKey)}
-                  selectedCsvValues={getCsvFieldValues(question.promptKey)}
-                  onChange={(value) => {
-                    onFieldChange(question.promptKey, value)
-                  }}
-                  onToggleCsvValue={(value) => {
-                    onToggleCsvFieldValue(question.promptKey, value)
-                  }}
-                />
+            if (question.promptKey === 'activityTypes') {
+              return activitySearchMode === 'specific'
+            }
+
+            if (
+              question.promptKey === 'activityIdeaCount' ||
+              question.promptKey === 'activityBrowseCategory'
+            ) {
+              return activitySearchMode === 'browse'
+            }
+
+            return true
+          })
+          .map((question) => {
+            const fieldConfig: QuestionFieldConfig =
+              QUESTION_FIELD_CONFIGS[question.promptKey]
+            const fieldId = `question-${question.promptKey}`
+            const helperId = fieldConfig.helperText
+              ? `${fieldId}-help`
+              : undefined
+
+            return (
+              <div
+                key={question.promptKey}
+                className={
+                  fieldConfig.layout === 'full' ? 'sm:col-span-2' : undefined
+                }
+              >
+                {fieldConfig.fieldType === 'priceLevel' ||
+                fieldConfig.fieldType === 'dateTime' ||
+                fieldConfig.fieldType === 'activitySearchMode' ||
+                fieldConfig.fieldType === 'activityIdeaCount' ||
+                fieldConfig.fieldType === 'activityBrowseCategory' ? (
+                  <p className={fieldLabelClassName}>{question.prompt}</p>
+                ) : (
+                  <label htmlFor={fieldId} className={fieldLabelClassName}>
+                    {question.prompt}
+                  </label>
+                )}
+                <div className="mt-2.5">
+                  <QuestionFieldRenderer
+                    question={question}
+                    inputId={fieldId}
+                    inputName={question.promptKey}
+                    describedBy={helperId}
+                    value={getFieldValue(question.promptKey)}
+                    selectedCsvValues={getCsvFieldValues(question.promptKey)}
+                    activitySearchMode={getFieldValue('activitySearchMode')}
+                    onChange={(value) => {
+                      onFieldChange(question.promptKey, value)
+                    }}
+                    onToggleCsvValue={(value) => {
+                      onToggleCsvFieldValue(question.promptKey, value)
+                    }}
+                  />
+                </div>
+                {fieldConfig.helperText && (
+                  <p id={helperId} className={fieldHintClassName}>
+                    {fieldConfig.helperText}
+                  </p>
+                )}
               </div>
-              {fieldConfig.helperText && (
-                <p id={helperId} className={fieldHintClassName}>
-                  {fieldConfig.helperText}
-                </p>
-              )}
-            </div>
-          )
-        })}
+            )
+          })}
       </div>
 
       <PaginationButtons
