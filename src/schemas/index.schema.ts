@@ -59,7 +59,15 @@ const priceLevelCsvSchema = z
 
 export const activitySearchModeSchema = z.enum(['browse', 'specific'])
 
-export const activityIdeaCountSchema = z.enum(['3', '5', '8', '10'])
+export const activityIdeaCountSchema = z.enum([
+  '3',
+  '5',
+  '8',
+  '10',
+  '12',
+  '15',
+  '20',
+])
 
 export const activityBrowseCategorySchema = z.enum([
   'popular_date_spots',

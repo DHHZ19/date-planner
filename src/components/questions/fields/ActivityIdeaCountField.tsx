@@ -18,7 +18,7 @@ export default function ActivityIdeaCountField({
       <legend className="sr-only">
         Select how many activity ideas to show
       </legend>
-      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-7">
         {ACTIVITY_IDEA_COUNT_OPTIONS.map((option) => {
           const selected = value === option.value
 

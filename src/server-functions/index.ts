@@ -237,13 +237,7 @@ const filterPlacesByPriceLevel = (
 const FOOD_PLACE_TYPE_BLOCKLIST = new Set([
   'restaurant',
   'fine_dining_restaurant',
-  'cafeteria',
-  'coffee_shop',
-  'coffee_roastery',
-  'coffee_stand',
-  'dessert_shop',
   'dessert_restaurant',
-  'ice_cream_shop',
   'bakery',
   'cake_shop',
   'donut_shop',
@@ -294,8 +288,6 @@ const FOOD_PLACE_TYPE_BLOCKLIST = new Set([
   'gastropub',
   'halal_restaurant',
   'indonesian_restaurant',
-  'dog_cafe',
-  'cat_cafe',
 ])
 
 const filterFoodPlacesFromActivities = (places: NearbyPlace[]) => {
@@ -572,7 +564,6 @@ const NOT_FOR_DATE_INDICATORS = {
     'clothing_store',
     'shoe_store',
     'jewelry_store',
-    'book_store',
     'department_store',
     'supermarket',
     'grocery_store',
@@ -883,15 +874,12 @@ const refinePlacesWithAI = async ({
   search: string
   settings: RefinementSettings
 }) => {
-  console.log('[refinePlacesWithAI] Starting AI refinement:', {
+  console.log('[refinePlacesWithAI] Full places before refinement:', {
     count: places.length,
-    queryKind: settings.queryKind,
-    search,
-    settings,
+    place: places.map((place) => place.displayName),
   })
 
   if (places.length === 0) {
-    console.log('[refinePlacesWithAI] No places to refine')
     return places
   }
 
@@ -904,34 +892,15 @@ const refinePlacesWithAI = async ({
     (value) => typeof value === 'string' && value.length > 0,
   )
   if (!hasPreferenceSettings) {
-    console.log('[refinePlacesWithAI] No preference settings, skipping AI')
     return places
   }
 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
-    console.log('[refinePlacesWithAI] No OpenAI API key, skipping AI')
     return places
   }
 
-  // Pre-filter to exclude places obviously not good for dates
   const filteredPlaces = places.filter((place) => !isNotGoodForDates(place))
-  if (filteredPlaces.length < places.length) {
-    console.log(
-      '[refinePlacesWithAI] Pre-filtered places not good for dates:',
-      {
-        removed: places.length - filteredPlaces.length,
-        remaining: filteredPlaces.length,
-        removedPlaces: places
-          .filter((p) => !filteredPlaces.includes(p))
-          .map((p) => ({
-            id: p.id,
-            name: p.displayName?.text,
-            primaryType: p.primaryType,
-          })),
-      },
-    )
-  }
 
   const candidatePlaces = filteredPlaces.map((place) => {
     // Extract structured amenity signals for AI context
@@ -1281,7 +1250,6 @@ const fetchActivitiesNearby = async ({
   dateTime,
   priceLevel,
   distanceMiles,
-  maxResults,
   searchState,
 }: {
   latitude: number
@@ -1289,7 +1257,6 @@ const fetchActivitiesNearby = async ({
   dateTime: DateTimeOption
   priceLevel?: z.infer<typeof priceLevelArraySchema>
   distanceMiles: string
-  maxResults: number
   searchState: SearchState
 }) => {
   const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
@@ -1330,7 +1297,7 @@ const fetchActivitiesNearby = async ({
       },
       body: JSON.stringify({
         includedTypes: typesToSearch,
-        maxResultCount: 20, // Request more to allow for filtering
+        maxResultCount: 20,
         rankPreference: 'POPULARITY',
         locationRestriction: {
           circle: {
@@ -1423,16 +1390,14 @@ const fetchActivitiesNearby = async ({
 
   console.log('[fetchActivitiesNearby] Final refined activities:', {
     count: refinedPlaces.length,
-    maxResults,
-    places: refinedPlaces.slice(0, maxResults).map((p) => ({
+    places: refinedPlaces.slice(0, 5).map((p) => ({
       id: p.id,
       name: p.displayName?.text,
       rating: p.rating,
     })),
   })
 
-  // Limit to requested number of results
-  return refinedPlaces.slice(0, maxResults) as NearbyPlacesResponse
+  return refinedPlaces as NearbyPlacesResponse
 }
 
 // Enrich top candidates with full Place Details for AI refinement
@@ -1595,10 +1560,6 @@ export const getDatePlan = createServerFn({ method: 'POST' })
 
       // Determine activity search mode
       const activitySearchMode = data.searchState.activitySearchMode ?? 'browse'
-      const activityIdeaCount = Number(
-        data.searchState.activityIdeaCount ?? '5',
-      )
-
       console.log(
         '[getDatePlan] Starting parallel fetch for restaurants and activities...',
       )
@@ -1624,7 +1585,6 @@ export const getDatePlan = createServerFn({ method: 'POST' })
               dateTime,
               priceLevel,
               distanceMiles: parsedDistance,
-              maxResults: activityIdeaCount,
               searchState: data.searchState,
             })
           : // Use text search for specific activity types
