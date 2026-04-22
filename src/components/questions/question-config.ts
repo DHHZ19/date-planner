@@ -9,6 +9,7 @@ export type QuestionFieldType =
   | 'activityIdeaCount'
   | 'activityBrowseCategory'
   | 'activitySetting'
+  | 'dateVibe'
 
 export type QuestionFieldConfig = {
   key: AnswerKey
@@ -48,10 +49,6 @@ export const QUESTION_SECTIONS: QuestionSection[] = [
         promptKey: 'activitySearchMode',
       },
       {
-        prompt: 'How many date ideas would you like to see?',
-        promptKey: 'activityIdeaCount',
-      },
-      {
         prompt: 'What kind of date ideas should we browse?',
         promptKey: 'activityBrowseCategory',
       },
@@ -64,8 +61,7 @@ export const QUESTION_SECTIONS: QuestionSection[] = [
         promptKey: 'activitySetting',
       },
       {
-        prompt:
-          'Would you like the date to be relaxed, adventurous, or romantic?',
+        prompt: 'What vibes are you going for?',
         promptKey: 'dateVibe',
       },
     ],
@@ -103,7 +99,13 @@ export const QUESTION_FIELD_CONFIGS: Record<AnswerKey, QuestionFieldConfig> = {
     helperText:
       'Choose whether you prefer indoor venues, outdoor spaces, or a mix.',
   },
-  dateVibe: { key: 'dateVibe', fieldType: 'text', layout: 'half' },
+  dateVibe: {
+    key: 'dateVibe',
+    fieldType: 'dateVibe',
+    layout: 'half',
+    helperText:
+      "We'll prioritize places that feel more romantic, low-key, or activity-driven.",
+  },
   food: { key: 'food', fieldType: 'text', layout: 'half' },
   priceLevel: {
     key: 'priceLevel',
@@ -153,4 +155,13 @@ export const ACTIVITY_IDEA_COUNT_OPTIONS = [
   { value: '5', label: '5 ideas' },
   { value: '8', label: '8 ideas' },
   { value: '10', label: '10 ideas' },
+  { value: '12', label: '12 ideas' },
+  { value: '15', label: '15 ideas' },
+  { value: '20', label: '20 ideas' },
+] as const
+
+export const DATE_VIBE_OPTIONS = [
+  { value: 'romantic', label: 'Romantic' },
+  { value: 'relaxed', label: 'Low-key' },
+  { value: 'adventurous', label: 'Activity-driven' },
 ] as const

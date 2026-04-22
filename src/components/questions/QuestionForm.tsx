@@ -68,10 +68,7 @@ export default function QuestionForm({
               return activitySearchMode === 'specific'
             }
 
-            if (
-              question.promptKey === 'activityIdeaCount' ||
-              question.promptKey === 'activityBrowseCategory'
-            ) {
+            if (question.promptKey === 'activityBrowseCategory') {
               return activitySearchMode === 'browse'
             }
 
@@ -96,7 +93,8 @@ export default function QuestionForm({
                 fieldConfig.fieldType === 'dateTime' ||
                 fieldConfig.fieldType === 'activitySearchMode' ||
                 fieldConfig.fieldType === 'activityIdeaCount' ||
-                fieldConfig.fieldType === 'activityBrowseCategory' ? (
+                fieldConfig.fieldType === 'activityBrowseCategory' ||
+                fieldConfig.fieldType === 'dateVibe' ? (
                   <p className={fieldLabelClassName}>{question.prompt}</p>
                 ) : (
                   <label htmlFor={fieldId} className={fieldLabelClassName}>
