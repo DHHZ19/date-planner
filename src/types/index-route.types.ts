@@ -6,7 +6,24 @@ export type GoogleSearchTextResponse =
 export type GoogleNearbyPlace = NonNullable<
   GoogleSearchTextResponse['places']
 >[number]
-export type NearbyPlace = GoogleNearbyPlace
+export type GoogleDisplayName = NonNullable<GoogleNearbyPlace['displayName']>
+export type PlaceReasoning = {
+  ai: {
+    reason: string
+    score: number | null
+    rank: number | null
+  }
+  google: Array<{
+    label: 'Generative' | 'Editorial' | 'Review'
+    text: string
+  }>
+}
+
+export type NearbyPlace = GoogleNearbyPlace & {
+  displayName?: GoogleDisplayName
+  reasoning?: PlaceReasoning
+}
+
 export type NearbyPlacesResponse = ValidateSerializableInput<
   Register,
   NearbyPlace[]
@@ -66,6 +83,9 @@ export type QuestionSection = {
 
 export type SearchState = {
   step: number
+  latitude?: number
+  longitude?: number
+  locationSource?: 'ip' | 'current' | 'pin' | 'typed'
 } & Partial<Record<AnswerKey, string>>
 
 export type QuestionInputsProps = {

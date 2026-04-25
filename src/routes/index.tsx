@@ -13,6 +13,8 @@ export const Route = createFileRoute('/')({
 
 function App() {
   const search = Route.useSearch()
+  const hasSelectedLocation =
+    typeof search.latitude === 'number' && typeof search.longitude === 'number'
 
   const currentPage = search.step
   const currentSection =
@@ -30,8 +32,9 @@ function App() {
           Date Planner
         </h1>
         <p className="mt-2 text-base/7 text-[var(--ui-text-muted)] sm:text-lg/8">
-          Step {currentSection.page} of {lastPage}. Tell us what you are in the
-          mood for.
+          {hasSelectedLocation
+            ? `Step ${currentSection.page} of ${lastPage}. Tell us what you are in the mood for.`
+            : 'Choose a starting location first, then we will tailor the rest of the plan.'}
         </p>
         <section className="mt-8">
           <QuestionInputs currentSection={currentSection} lastPage={lastPage} />

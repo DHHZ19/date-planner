@@ -1,7 +1,7 @@
+import LocationGate from '#/components/questions/LocationGate'
 import QuestionForm from '#/components/questions/QuestionForm'
 import ResultsPanel from '#/components/questions/ResultsPanel'
 import { PRICE_LEVEL_OPTIONS } from '#/components/questions/question-config'
-import { useCurrentLocation } from '#/components/questions/hooks/useCurrentLocation'
 import { useDatePlanSubmission } from '#/components/questions/hooks/useDatePlanSubmission'
 import { useQuestionSearchState } from '#/components/questions/hooks/useQuestionSearchState'
 
@@ -17,44 +17,56 @@ export const QuestionInputs = ({
 }) => {
   const { search, updateField, getCsvFieldValues, toggleCsvFieldValue } =
     useQuestionSearchState()
-  const { currentPosition, locationError } = useCurrentLocation()
   const { restaurants, activities, isSubmitting, submitError, submitDatePlan } =
     useDatePlanSubmission()
+  const selectedPosition =
+    typeof search.latitude === 'number' && typeof search.longitude === 'number'
+      ? {
+          latitude: search.latitude,
+          longitude: search.longitude,
+        }
+      : null
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     await submitDatePlan({
       search,
-      currentPosition,
+      selectedPosition,
     })
   }
 
   return (
     <>
-      <QuestionForm
-        currentSection={currentSection}
-        lastPage={lastPage}
-        getFieldValue={(key) => search[key]}
-        getCsvFieldValues={(key) => getCsvFieldValues(key)}
-        onFieldChange={(key, value) => updateField(key, value)}
-        onToggleCsvFieldValue={(key, value) => {
-          toggleCsvFieldValue(key, value, PRICE_LEVEL_OPTIONS.length)
-        }}
-        onSubmit={handleSubmit}
-        isSubmitting={isSubmitting}
-      />
+      <LocationGate />
 
-      {(locationError || submitError) && (
+      {selectedPosition && (
+        <QuestionForm
+          currentSection={currentSection}
+          lastPage={lastPage}
+          getFieldValue={(key) => search[key]}
+          getCsvFieldValues={(key) => getCsvFieldValues(key)}
+          onFieldChange={(key, value) => updateField(key, value)}
+          onToggleCsvFieldValue={(key, value) => {
+            toggleCsvFieldValue(key, value, PRICE_LEVEL_OPTIONS.length)
+          }}
+          onSubmit={handleSubmit}
+          isSubmitting={isSubmitting}
+        />
+      )}
+
+      {submitError && (
         <p
           className="mt-4 rounded-md border border-[var(--love-300)] bg-[var(--love-050)]/96 px-4 py-3 text-sm text-[var(--ui-danger)]"
           role="alert"
         >
-          {submitError ?? locationError}
+          {submitError}
         </p>
       )}
 
-      <ResultsPanel restaurants={restaurants} activities={activities} />
+      {selectedPosition && (
+        <ResultsPanel restaurants={restaurants} activities={activities} />
+      )}
     </>
   )
 }
