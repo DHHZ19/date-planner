@@ -20,13 +20,13 @@ export function useDatePlanSubmission() {
 
   const submitDatePlan = async ({
     search,
-    currentPosition,
+    selectedPosition,
   }: {
     search: SearchState
-    currentPosition: LocationCoordinates | null
+    selectedPosition: LocationCoordinates | null
   }) => {
-    if (!currentPosition) {
-      setSubmitError('Current position is unavailable.')
+    if (!selectedPosition) {
+      setSubmitError('Choose a location before searching for date ideas.')
       return
     }
 
@@ -36,17 +36,16 @@ export function useDatePlanSubmission() {
 
       const datePlanResponse = (await getDatePlan({
         data: {
-          latitude: currentPosition.latitude,
-          longitude: currentPosition.longitude,
+          latitude: selectedPosition.latitude,
+          longitude: selectedPosition.longitude,
           searchState: search,
         },
       })) as DatePlanResponse
 
       setRestaurants(datePlanResponse.restaurants)
       setActivities(datePlanResponse.activities)
-    } catch (error) {
+    } catch {
       setSubmitError('Unable to fetch date suggestions. Please try again.')
-      console.error(error)
     } finally {
       setIsSubmitting(false)
     }

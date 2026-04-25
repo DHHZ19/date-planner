@@ -26,6 +26,7 @@
     "@tanstack/react-start": "latest",
     "@tanstack/router-plugin": "^1.132.0",
     "@types/google.maps": "^3.58.1",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.545.0",
     "openai": "^6.34.0",
     "react": "^19.2.0",

@@ -21,6 +21,28 @@ const stepSchema = z.preprocess(
   z.number().int().positive(),
 )
 
+const coordinateSchema = z.preprocess((value) => {
+  if (value === '' || value === undefined || value === null) {
+    return undefined
+  }
+
+  if (typeof value === 'number') {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.length === 0) {
+      return undefined
+    }
+
+    const parsed = Number(trimmed)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+
+  return undefined
+}, z.number().finite().optional())
+
 const optionalTextSearchParamSchema = z.preprocess((value) => {
   if (typeof value !== 'string') {
     return undefined
@@ -59,6 +81,8 @@ const priceLevelCsvSchema = z
 
 export const activitySearchModeSchema = z.enum(['browse', 'specific'])
 
+export const locationSourceSchema = z.enum(['ip', 'current', 'pin', 'typed'])
+
 export const activityIdeaCountSchema = z.enum([
   '3',
   '5',
@@ -82,7 +106,7 @@ export const searchStateSchema = z.object({
   step: stepSchema.catch(1),
   dateTime: z.preprocess(
     (value) => (value === '' ? undefined : value),
-    dateTimeSchema.optional().catch(undefined),
+    dateTimeSchema.catch('Now'),
   ),
   startingArea: optionalTextSearchParamSchema.catch(undefined),
   duration: optionalTextSearchParamSchema.catch(undefined),
@@ -109,7 +133,13 @@ export const searchStateSchema = z.object({
 
     const trimmed = value.trim()
     return trimmed.length > 0 ? trimmed : undefined
-  }, distanceSchema.optional().catch(undefined)),
+  }, distanceSchema.catch('5')),
+  latitude: coordinateSchema.catch(undefined),
+  longitude: coordinateSchema.catch(undefined),
+  locationSource: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    locationSourceSchema.optional().catch(undefined),
+  ),
 })
 
 export const stringArraySchema = z.array(z.string())
