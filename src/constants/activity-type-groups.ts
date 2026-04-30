@@ -62,8 +62,12 @@ export const GAMES_FUN_TYPES: ActivityTypeGroup = {
     'miniature_golf_course',
     'go_karting_venue',
     'paintball_center',
-    'adventure_sports_center',
     'comedy_club',
+    'karaoke',
+    'movie_theater',
+    'ice_skating_rink',
+    'indoor_golf_course',
+    'casino',
   ],
   timePreference: 'any',
 }
