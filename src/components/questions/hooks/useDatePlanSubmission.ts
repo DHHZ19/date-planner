@@ -44,8 +44,17 @@ export function useDatePlanSubmission() {
 
       setRestaurants(datePlanResponse.restaurants)
       setActivities(datePlanResponse.activities)
+
+      // Cache the result for the results page
+      localStorage.setItem(
+        'date-planner-latest-plan',
+        JSON.stringify(datePlanResponse),
+      )
+
+      return datePlanResponse
     } catch {
       setSubmitError('Unable to fetch date suggestions. Please try again.')
+      return null
     } finally {
       setIsSubmitting(false)
     }

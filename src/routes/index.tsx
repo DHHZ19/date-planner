@@ -13,33 +13,23 @@ export const Route = createFileRoute('/')({
 
 function App() {
   const search = Route.useSearch()
-  const hasSelectedLocation =
-    typeof search.latitude === 'number' && typeof search.longitude === 'number'
 
-  const currentPage = search.step
+  const lastPage = QUESTION_SECTIONS.length
+  const currentPage = Math.min(search.step, lastPage)
   const currentSection =
     QUESTION_SECTIONS.find(({ page }) => page === currentPage) ??
-    QUESTION_SECTIONS[0]
-  const lastPage = QUESTION_SECTIONS.length
+    QUESTION_SECTIONS[lastPage - 1]
 
   return (
-    <main className="page-wrap px-4 pt-14 pb-10 sm:pb-14">
-      <div className="rise-in relative isolate overflow-hidden rounded-4xl border border-[var(--ui-border)] bg-gradient-to-br from-[var(--love-050)]/86 via-[var(--ui-surface)]/92 to-[var(--love-050)]/28 px-6 py-10 shadow-[0_32px_80px_-46px_rgba(126,31,61,0.28)] backdrop-blur-sm sm:px-10 sm:py-14">
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(125%_125%_at_top_right,rgba(255,255,255,0.96),rgba(255,255,255,0)_58%)]" />
-        <div className="pointer-events-none absolute inset-y-0 right-[-22%] -z-10 hidden w-80 bg-[radial-gradient(65%_65%_at_50%_18%,rgba(200,106,106,0.22),rgba(200,106,106,0)_82%)] lg:block" />
-        <div className="pointer-events-none absolute bottom-[-26%] -left-16 -z-10 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(126,31,61,0.12),rgba(126,31,61,0)_70%)]" />
-        <h1 className="text-4xl font-semibold tracking-tight text-[var(--love-700)] sm:text-5xl">
+    <main className="page-wrap px-4 pt-3 sm:pt-6 lg:pt-4">
+      <div className="mx-auto max-w-2xl text-center sm:text-left">
+        <h1 className="rise-in text-3xl font-extrabold tracking-tight text-[var(--love-700)] sm:text-5xl">
           Date Planner
         </h1>
-        <p className="mt-2 text-base/7 text-[var(--ui-text-muted)] sm:text-lg/8">
-          {hasSelectedLocation
-            ? `Step ${currentSection.page} of ${lastPage}. Tell us what you are in the mood for.`
-            : 'Choose a starting location first, then we will tailor the rest of the plan.'}
-        </p>
-        <section className="mt-8">
-          <QuestionInputs currentSection={currentSection} lastPage={lastPage} />
-        </section>
       </div>
+      <section className="mt-4 text-left sm:mt-6">
+        <QuestionInputs currentSection={currentSection} lastPage={lastPage} />
+      </section>
     </main>
   )
 }

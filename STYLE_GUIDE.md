@@ -72,15 +72,13 @@ Cards often include pointer-events-none pseudo-layers for radial highlight effec
 Unselected state:
 
 ```
-border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)]
-hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:bg-[var(--ui-surface-soft)]
+border-2 border-[var(--ui-border)] border-b-4 bg-[var(--ui-surface)] text-[var(--ui-text)] hover:bg-[var(--ui-surface-soft)] active:border-b-2 active:translate-y-[2px]
 ```
 
 Selected state:
 
 ```
-border-[#6c1834] bg-gradient-to-b from-[#a33a4a] to-[#7e1f3d] text-white
-shadow-[0_12px_28px_-16px_rgba(126,31,61,0.62)]
+border-2 border-[var(--love-900)] border-b-4 bg-[var(--love-700)] text-white active:border-b-2 active:translate-y-[2px]
 ```
 
 Focus ring (applied via `focus-within:` on the label):
@@ -90,21 +88,20 @@ focus-within:ring-2 focus-within:ring-[var(--love-300)]
 focus-within:ring-offset-2 focus-within:ring-offset-[var(--ui-surface)]/70
 ```
 
-All chips use `rounded-md`, `px-3 py-2.5`, and `transition duration-200`.
+All chips use `rounded-2xl`, `px-3 py-3` (or similar), and `transition-all duration-150`.
 
 ### Text inputs
 
 Defined in `src/components/questions/fields/field-classes.ts` as `baseFieldClassName`:
 
 ```
-block w-full rounded-md
-border border-[var(--ui-border)]
-bg-[var(--ui-surface)]/92
-px-3.5 py-2 text-base text-[var(--ui-text)]
-shadow-[0_8px_18px_-14px_rgba(126,31,61,0.2)]
-outline-none backdrop-blur-sm
+block w-full rounded-2xl
+border-2 border-[var(--ui-border)] border-b-4
+bg-[var(--ui-surface)]
+px-4 py-3 text-base text-[var(--ui-text)]
+outline-none
 placeholder:text-[var(--ui-text-muted)]
-transition
+transition-all duration-150
 focus:border-[var(--love-300)]
 focus:ring-4 focus:ring-[var(--love-050)]/70
 ```
@@ -114,23 +111,19 @@ focus:ring-4 focus:ring-[var(--love-050)]/70
 **Primary** (submit, next):
 
 ```
-rounded-md border border-[#6c1834]
-bg-gradient-to-r from-[#a33a4a] to-[#7e1f3d]
-text-white font-semibold text-sm tracking-wide
-shadow-[0_18px_30px_-18px_rgba(126,31,61,0.62)]
-hover:-translate-y-0.5 hover:from-[#8e2f43] hover:to-[#6c1834]
-active:translate-y-0
+rounded-2xl border-2 border-[var(--love-900)] border-b-4 bg-[var(--love-700)] text-white font-bold text-base tracking-wide
+transition-all duration-150
+active:border-b-2 active:translate-y-[2px]
 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#6c1834]
 ```
 
 **Secondary** (back):
 
 ```
-rounded-md border border-[var(--ui-border)]
-bg-[var(--ui-surface)] text-[var(--ui-text)] font-semibold text-sm tracking-wide
-shadow-[0_14px_24px_-22px_rgba(126,31,61,0.18)]
-hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:bg-[var(--ui-surface-soft)]
-active:translate-y-0
+rounded-2xl border-2 border-[var(--ui-border)] border-b-4 bg-[var(--ui-surface)] text-[var(--ui-text)] font-bold text-base tracking-wide
+transition-all duration-150
+hover:bg-[var(--ui-surface-soft)]
+active:border-b-2 active:translate-y-[2px]
 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]
 ```
 

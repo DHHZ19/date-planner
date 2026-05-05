@@ -27,8 +27,9 @@ import OpenAI from 'openai'
 
 import { fetchTicketmasterEvents } from './ticketmaster'
 
-// Field mask for Nearby Search (New) and Text Search (New)
-// Uses "places." prefixes per search API requirements.
+// Lean field mask for Nearby Search (New) and Text Search (New). Search is
+// used for candidate discovery; rich Atmosphere fields are fetched only for
+// bounded finalists in Place Details.
 const GOOGLE_SEARCH_FIELD_MASK =
   'places.id,' +
   'places.displayName,' +
@@ -37,32 +38,12 @@ const GOOGLE_SEARCH_FIELD_MASK =
   'places.primaryTypeDisplayName,' +
   'places.businessStatus,' +
   'places.currentOpeningHours,' +
-  'places.regularOpeningHours,' +
-  'places.utcOffsetMinutes,' +
   'places.websiteUri,' +
   'places.googleMapsUri,' +
   'places.photos,' +
   'places.priceLevel,' +
-  'places.priceRange,' +
   'places.rating,' +
-  'places.userRatingCount,' +
-  'places.generativeSummary,' +
-  'places.editorialSummary,' +
-  'places.reviewSummary,' +
-  'places.reservable,' +
-  'places.outdoorSeating,' +
-  'places.liveMusic,' +
-  'places.goodForGroups,' +
-  'places.servesCocktails,' +
-  'places.servesWine,' +
-  'places.servesBeer,' +
-  'places.servesCoffee,' +
-  'places.servesDessert,' +
-  'places.servesDinner,' +
-  'places.servesLunch,' +
-  'places.menuForChildren,' +
-  'places.allowsDogs,' +
-  'places.accessibilityOptions'
+  'places.userRatingCount'
 
 // Field mask for Place Details (New)
 // Place Details uses field names without the "places." prefix.
@@ -74,8 +55,6 @@ const GOOGLE_PLACE_DETAILS_FIELD_MASK =
   'primaryTypeDisplayName,' +
   'businessStatus,' +
   'currentOpeningHours,' +
-  'regularOpeningHours,' +
-  'utcOffsetMinutes,' +
   'websiteUri,' +
   'googleMapsUri,' +
   'photos,' +
@@ -105,9 +84,26 @@ const MILES_TO_METERS = 1609.344
 const MAX_NEARBY_SEARCH_RADIUS_METERS = 50_000
 const MAX_GOOGLE_PLACES_RESULTS = 20
 const MAX_CITY_AUTOCOMPLETE_RESULTS = 6
+const DEFAULT_DETAILS_ENRICHMENT_LIMIT = 8
+const MAX_DETAILS_ENRICHMENT_LIMIT = 15
+const DETAILS_ENRICHMENT_BUFFER = 3
+const PLACE_DETAILS_CACHE_TTL_MS = 30 * 60 * 1000
 type QueryKind = 'restaurant' | 'activity'
 
+const placeDetailsCache = new Map<
+  string,
+  { place: NearbyPlace; expiresAt: number }
+>()
+
 const CITY_PLACE_TYPES = new Set(['city', 'town', 'village', 'municipality'])
+const CITY_AUTOCOMPLETE_RESULT_TYPES = new Set([
+  'administrative',
+  'city',
+  'municipality',
+  'place',
+  'town',
+  'village',
+])
 
 type NominatimCityResult = {
   lat: string
@@ -143,13 +139,39 @@ const buildCityLabel = (result: NominatimCityResult) => {
 }
 
 const GOOGLE_TEXT_FIELD_PROMPT_SUFFIX: Record<
-  'food' | 'activityTypes' | 'activitySetting' | 'dateVibe',
+  'food' | 'activityTypes' | 'dateVibe',
   string
 > = {
   food: 'food',
   activityTypes: 'activity types',
-  activitySetting: 'activity setting',
   dateVibe: 'date vibe',
+}
+
+const getDetailsEnrichmentLimit = (searchState: SearchState) => {
+  const requestedCount = Number(searchState.activityIdeaCount)
+  if (!Number.isFinite(requestedCount) || requestedCount <= 0) {
+    return DEFAULT_DETAILS_ENRICHMENT_LIMIT
+  }
+
+  return Math.min(
+    Math.ceil(requestedCount) + DETAILS_ENRICHMENT_BUFFER,
+    MAX_DETAILS_ENRICHMENT_LIMIT,
+  )
+}
+
+const logPlacesTiming = ({
+  label,
+  startedAt,
+  metadata = {},
+}: {
+  label: string
+  startedAt: number
+  metadata?: Record<string, number | string | boolean | undefined>
+}) => {
+  console.info(`[places] ${label}`, {
+    durationMs: Date.now() - startedAt,
+    ...metadata,
+  })
 }
 
 /**
@@ -488,7 +510,6 @@ type RefinementSettings = {
   dateVibe?: string
   food?: string
   activityTypes?: string
-  activitySetting?: string
   activityBrowseCategory?: string
   searchMode?: 'browse' | 'specific'
   priceLevel?: string
@@ -516,7 +537,6 @@ const buildPreferenceSettingsForQuery = ({
     queryKind,
     dateVibe,
     activityTypes: searchState.activityTypes?.trim(),
-    activitySetting: searchState.activitySetting?.trim(),
     activityBrowseCategory: searchState.activityBrowseCategory?.trim(),
     searchMode: searchState.activitySearchMode as
       | 'browse'
@@ -817,7 +837,7 @@ const refinePlacesWithAI = async ({
   const preferenceValues =
     settings.queryKind === 'restaurant'
       ? [settings.food, settings.dateVibe]
-      : [settings.activityTypes, settings.activitySetting, settings.dateVibe]
+      : [settings.activityTypes, settings.dateVibe]
 
   const hasPreferenceSettings = preferenceValues.some(
     (value) => typeof value === 'string' && value.length > 0,
@@ -1105,6 +1125,7 @@ const fetchPlacesForQuery = async ({
     latDelta / Math.max(Math.cos((latitude * Math.PI) / 180), 0.01)
   const settings = buildPreferenceSettingsForQuery({ queryKind, searchState })
   const textQuery = buildTextQuery(search)
+  const searchStartedAt = Date.now()
 
   const res = await fetch(
     `https://places.googleapis.com/v1/places:searchText`,
@@ -1143,6 +1164,11 @@ const fetchPlacesForQuery = async ({
 
   const placesData = (await res.json()) as GoogleSearchTextResponse
   const places: NearbyPlace[] = placesData.places ?? []
+  logPlacesTiming({
+    label: `${queryKind} text search`,
+    startedAt: searchStartedAt,
+    metadata: { resultCount: places.length },
+  })
 
   const ticketmasterPlaces = includeTicketmaster
     ? await fetchTicketmasterEvents({
@@ -1163,8 +1189,24 @@ const fetchPlacesForQuery = async ({
 
   const ratingFilteredPlaces = filterPlacesByRating(priceFilteredPlaces)
 
+  const detailsLimit = getDetailsEnrichmentLimit(searchState)
+  const detailsStartedAt = Date.now()
+  const enrichedPlaces = await enrichPlacesWithDetails(
+    ratingFilteredPlaces,
+    detailsLimit,
+  )
+  logPlacesTiming({
+    label: `${queryKind} details enrichment`,
+    startedAt: detailsStartedAt,
+    metadata: {
+      candidateCount: ratingFilteredPlaces.length,
+      enrichmentLimit: detailsLimit,
+      enrichedCount: Math.min(ratingFilteredPlaces.length, detailsLimit),
+    },
+  })
+
   const refinedPlaces = await refinePlacesWithAI({
-    places: [...ratingFilteredPlaces, ...ticketmasterPlaces],
+    places: [...enrichedPlaces, ...ticketmasterPlaces],
     search,
     settings,
   })
@@ -1202,6 +1244,7 @@ const fetchActivitiesNearby = async ({
     (searchState.activityBrowseCategory as
       | ActivityBrowseCategory
       | undefined) ?? DEFAULT_ACTIVITY_BROWSE_CATEGORY
+  const browseGroup = getActivityTypeGroupByName(selectedBrowseCategory)
 
   // Apply time heuristics only when we are doing broad browse discovery.
   const timePreference = mapDateTimeToTimePreference(dateTime)
@@ -1209,11 +1252,11 @@ const fetchActivitiesNearby = async ({
     category: selectedBrowseCategory,
     timePreference,
   })
-  const browseGroup = getActivityTypeGroupByName(selectedBrowseCategory)
 
   // Nearby Search API supports up to 50 types per request
   // We'll use all our date activity types (should be well under 50)
   const typesToSearch = placeTypes.slice(0, 50)
+  const searchStartedAt = Date.now()
 
   const [res, ticketmasterPlaces] = await Promise.all([
     fetch(`https://places.googleapis.com/v1/places:searchNearby`, {
@@ -1255,6 +1298,14 @@ const fetchActivitiesNearby = async ({
 
   const placesData = (await res.json()) as GoogleSearchTextResponse
   const places: NearbyPlace[] = placesData.places ?? []
+  logPlacesTiming({
+    label: 'activity nearby search',
+    startedAt: searchStartedAt,
+    metadata: {
+      resultCount: places.length,
+      ticketmasterCount: ticketmasterPlaces.length,
+    },
+  })
 
   const nonFoodPlaces = filterFoodPlacesFromActivities(places)
 
@@ -1269,9 +1320,23 @@ const fetchActivitiesNearby = async ({
 
   const ratingFilteredPlaces = filterPlacesByRating(priceFilteredPlaces)
 
-  // Enrich top candidates with full Place Details for better AI context
-  // This adds reviewSummary, generativeSummary, detailed amenities, etc.
-  const enrichedPlaces = await enrichPlacesWithDetails(ratingFilteredPlaces, 15)
+  // Enrich a bounded finalist set with full Place Details for better AI
+  // context. Remaining candidates are returned with lean search data.
+  const detailsLimit = getDetailsEnrichmentLimit(searchState)
+  const detailsStartedAt = Date.now()
+  const enrichedPlaces = await enrichPlacesWithDetails(
+    ratingFilteredPlaces,
+    detailsLimit,
+  )
+  logPlacesTiming({
+    label: 'activity nearby details enrichment',
+    startedAt: detailsStartedAt,
+    metadata: {
+      candidateCount: ratingFilteredPlaces.length,
+      enrichmentLimit: detailsLimit,
+      enrichedCount: Math.min(ratingFilteredPlaces.length, detailsLimit),
+    },
+  })
 
   // Build settings for AI refinement
   const settings = buildPreferenceSettingsForQuery({
@@ -1301,6 +1366,11 @@ const enrichPlacesWithDetails = async (
       const placeId = place.id
       if (!placeId) return place
 
+      const cachedDetails = placeDetailsCache.get(placeId)
+      if (cachedDetails && cachedDetails.expiresAt > Date.now()) {
+        return { ...place, ...cachedDetails.place }
+      }
+
       try {
         const res = await fetch(
           `https://places.googleapis.com/v1/places/${placeId}?` +
@@ -1318,7 +1388,11 @@ const enrichPlacesWithDetails = async (
         }
 
         const detailedPlace = (await res.json()) as NearbyPlace
-        return detailedPlace
+        placeDetailsCache.set(placeId, {
+          place: detailedPlace,
+          expiresAt: Date.now() + PLACE_DETAILS_CACHE_TTL_MS,
+        })
+        return { ...place, ...detailedPlace }
       } catch (error) {
         return place
       }
@@ -1379,19 +1453,15 @@ export const searchCities = createServerFn({ method: 'GET' })
   .handler(async ({ data }) => {
     const queryParams = new URLSearchParams({
       q: data.query,
-      format: 'jsonv2',
-      addressdetails: '1',
+      lang: 'en',
       limit: String(MAX_CITY_AUTOCOMPLETE_RESULTS),
-      featuretype: 'city',
     })
 
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?${queryParams.toString()}`,
+      `https://photon.komoot.io/api/?${queryParams.toString()}`,
       {
         headers: {
           Accept: 'application/json',
-          'Accept-Language': 'en',
-          'User-Agent': 'date-planner/1.0',
         },
       },
     )
@@ -1401,17 +1471,32 @@ export const searchCities = createServerFn({ method: 'GET' })
       throw new Error(`City search failed: ${response.status} ${errorText}`)
     }
 
-    const results = (await response.json()) as NominatimCityResult[]
-    const cities = results
-      .filter(
-        (result) =>
-          (result.type && CITY_PLACE_TYPES.has(result.type)) ||
-          (result.addresstype && CITY_PLACE_TYPES.has(result.addresstype)),
-      )
-      .map((result) => {
-        const latitude = Number(result.lat)
-        const longitude = Number(result.lon)
-        const label = buildCityLabel(result)
+    const photonResponse = await response.json()
+    const features = photonResponse.features as Array<{
+      properties: {
+        name: string
+        state?: string
+        country?: string
+        countrycode?: string
+      }
+      geometry: {
+        coordinates: [number, number] // [longitude, latitude]
+      }
+    }>
+
+    const cities = features
+      .map((feature) => {
+        const { name, state, country, countrycode } = feature.properties
+        const [longitude, latitude] = feature.geometry.coordinates
+
+        // Build label: "City, State, Country" (if available)
+        const labelParts = [name]
+        if (state) labelParts.push(state)
+        // Use country name if available, otherwise fallback to countrycode
+        if (country) labelParts.push(country)
+        else if (countrycode) labelParts.push(countrycode.toUpperCase())
+
+        const label = labelParts.join(', ')
 
         if (
           !label ||
@@ -1434,6 +1519,7 @@ export const searchCities = createServerFn({ method: 'GET' })
           city !== null,
       )
 
+    // Deduplicate by lowercase label (same as before)
     const dedupedCities = Array.from(
       new Map(cities.map((city) => [city.label.toLowerCase(), city])).values(),
     ).slice(0, MAX_CITY_AUTOCOMPLETE_RESULTS)
@@ -1475,7 +1561,6 @@ export const getPlaces = createServerFn({ method: 'POST' })
         step: 1,
         dateTime: data.dateTime,
         activityTypes: data.search,
-        activitySetting: undefined,
         dateVibe: undefined,
         food: data.search,
         priceLevel: data.priceLevel?.join(','),

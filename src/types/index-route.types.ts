@@ -58,6 +58,7 @@ export type ActivityBrowseCategory =
   | 'unique_memorable'
 
 export type AnswerKey =
+  | 'location'
   | 'dateTime'
   | 'startingArea'
   | 'duration'
@@ -65,7 +66,6 @@ export type AnswerKey =
   | 'activityIdeaCount'
   | 'activityBrowseCategory'
   | 'activityTypes'
-  | 'activitySetting'
   | 'dateVibe'
   | 'food'
   | 'priceLevel'

@@ -44,7 +44,7 @@ This page is an in-repo reference of the field names and SKU tiers used by the P
 | Delivery                        | `delivery`                     | Place Details Enterprise + Atmosphere | Text Search Enterprise + Atmosphere | Nearby Search Enterprise + Atmosphere |
 | Dine in                         | `dineIn`                       | Place Details Enterprise + Atmosphere | Text Search Enterprise + Atmosphere | Nearby Search Enterprise + Atmosphere |
 | Display name                    | `displayName`                  | Place Details Pro                     | Text Search Pro                     | Nearby Search Pro                     |
-| Editorial summary               | `editorialSummary`             | Place Details Enterprise + Atmosphere | Text Search Enterprise + Atmosphere | Nearby Search Enterprise + Atmosphere |
+| Editorial summary               |                                | Place Details Enterprise + Atmosphere | Text Search Enterprise + Atmosphere | Nearby Search Enterprise + Atmosphere |
 | AI-powered EVCS amenity summary | `evChargeAmenitySummary`       | Place Details Enterprise + Atmosphere | Text Search Enterprise + Atmosphere | Nearby Search Enterprise + Atmosphere |
 | EV charging options             | `evChargeOptions`              | Place Details Enterprise + Atmosphere | Text Search Enterprise + Atmosphere | Nearby Search Enterprise + Atmosphere |
 | Formatted address               | `formattedAddress`             | Place Details Essentials              | Text Search Pro                     | Nearby Search Pro                     |

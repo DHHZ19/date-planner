@@ -10,7 +10,6 @@ const DEBOUNCED_QUERY_KEYS: ReadonlySet<AnswerKey> = new Set([
   'activityIdeaCount',
   'activityBrowseCategory',
   'activityTypes',
-  'activitySetting',
   'dateVibe',
   'food',
 ])

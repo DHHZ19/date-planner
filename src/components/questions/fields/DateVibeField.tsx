@@ -25,11 +25,11 @@ export default function DateVibeField({
               <label
                 key={option.value}
                 className={[
-                  'cursor-pointer rounded-md border px-3 py-2.5 text-sm transition duration-200 select-none',
+                  'cursor-pointer rounded-2xl border-2 px-3 py-3 text-sm transition-all duration-150 select-none',
                   'focus-within:ring-2 focus-within:ring-[var(--love-300)] focus-within:ring-offset-2 focus-within:ring-offset-[var(--ui-surface)]/70',
                   isSelected
-                    ? 'border-[#6c1834] bg-gradient-to-b from-[#a33a4a] to-[#7e1f3d] font-semibold text-white shadow-[0_12px_28px_-16px_rgba(126,31,61,0.62)] hover:-translate-y-0.5'
-                    : 'border-[var(--ui-border)] bg-[var(--ui-surface)] font-medium text-[var(--ui-text)] hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:bg-[var(--ui-surface-soft)]',
+                    ? 'border-b-4 border-[var(--love-900)] bg-[var(--love-700)] font-semibold text-white active:translate-y-[2px] active:border-b-2'
+                    : 'border-b-4 border-[var(--ui-border)] bg-[var(--ui-surface)] font-medium text-[var(--ui-text)] hover:bg-[var(--ui-surface-soft)] active:translate-y-[2px] active:border-b-2',
                 ].join(' ')}
               >
                 <input
@@ -49,7 +49,7 @@ export default function DateVibeField({
         </div>
         <button
           type="button"
-          className="inline-flex min-h-11 items-center justify-center rounded-md border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2 text-sm font-semibold text-[var(--ui-text)] shadow-[0_14px_24px_-22px_rgba(126,31,61,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:bg-[var(--ui-surface-soft)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+          className="inline-flex min-h-11 items-center justify-center rounded-2xl border-2 border-b-4 border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2 text-sm font-semibold text-[var(--ui-text)] transition-all duration-150 hover:bg-[var(--ui-surface-soft)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)] active:translate-y-[2px] active:border-b-2 disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => onChange(undefined)}
           disabled={!value}
         >

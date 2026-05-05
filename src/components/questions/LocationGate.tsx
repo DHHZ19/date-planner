@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type * as Leaflet from 'leaflet'
+import { useNavigate } from '@tanstack/react-router'
 
 import { baseFieldClassName } from '#/components/questions/fields/field-classes'
 import { useCurrentLocation } from '#/components/questions/hooks/useCurrentLocation'
@@ -19,15 +20,23 @@ type CitySuggestion = {
   longitude: number
 }
 
-export default function LocationGate() {
+export default function LocationGate({
+  nextStep,
+  onErrorChange,
+}: {
+  nextStep: number
+  onErrorChange: (message: string | null) => void
+}) {
   const { search, setLocation } = useQuestionSearchState()
   const { requestCurrentLocation, isRequestingLocation, locationError } =
     useCurrentLocation()
+  const navigate = useNavigate()
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<Leaflet.Map | null>(null)
   const markerRef = useRef<Leaflet.Marker | null>(null)
   const leafletRef = useRef<any>(null)
-  const citySearchContainerRef = useRef<HTMLDivElement | null>(null)
+  const desktopCitySearchContainerRef = useRef<HTMLDivElement | null>(null)
+  const mobileCitySearchContainerRef = useRef<HTMLDivElement | null>(null)
   const citySearchRequestIdRef = useRef(0)
   const suppressNextCitySearchRef = useRef(false)
   const hasManualLocationSelectionRef = useRef(false)
@@ -63,7 +72,11 @@ export default function LocationGate() {
   }, [selectedLocation])
 
   useEffect(() => {
-    if (!isCitySearchOpen || !canEditLocation) {
+    onErrorChange(locationError ?? citySearchError)
+  }, [citySearchError, locationError, onErrorChange])
+
+  useEffect(() => {
+    if (!isCitySearchOpen) {
       return
     }
 
@@ -73,7 +86,11 @@ export default function LocationGate() {
         return
       }
 
-      if (!citySearchContainerRef.current?.contains(target)) {
+      const isInsideCitySearch =
+        desktopCitySearchContainerRef.current?.contains(target) ||
+        mobileCitySearchContainerRef.current?.contains(target)
+
+      if (!isInsideCitySearch) {
         setIsCitySearchOpen(false)
       }
     }
@@ -83,18 +100,9 @@ export default function LocationGate() {
     return () => {
       document.removeEventListener('mousedown', handleDocumentMouseDown)
     }
-  }, [isCitySearchOpen, canEditLocation])
+  }, [isCitySearchOpen])
 
   useEffect(() => {
-    if (!canEditLocation) {
-      setIsCitySearchOpen(false)
-      setCitySuggestions([])
-      setIsSearchingCities(false)
-      setCitySearchError(null)
-      setHighlightedCityIndex(-1)
-      return
-    }
-
     if (suppressNextCitySearchRef.current) {
       suppressNextCitySearchRef.current = false
       return
@@ -143,12 +151,12 @@ export default function LocationGate() {
             setIsSearchingCities(false)
           }
         })
-    }, 320)
+    }, 80)
 
     return () => {
       window.clearTimeout(timer)
     }
-  }, [cityQuery, canEditLocation])
+  }, [cityQuery])
 
   const handleSelectCity = (city: CitySuggestion) => {
     hasManualLocationSelectionRef.current = true
@@ -219,7 +227,11 @@ export default function LocationGate() {
 
       const L = await import('leaflet')
 
-      if (!mapContainerRef.current) {
+      if (
+        !mapContainerRef.current ||
+        mapRef.current ||
+        (container as any)._leaflet_id
+      ) {
         return
       }
 
@@ -228,9 +240,11 @@ export default function LocationGate() {
       const map = L.map(container, {
         center: [39.8283, -98.5795],
         zoom: 4,
-        zoomControl: true,
+        zoomControl: false,
         attributionControl: true,
       })
+
+      L.control.zoom({ position: 'bottomright' }).addTo(map)
 
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
@@ -413,30 +427,49 @@ export default function LocationGate() {
           : 'Using a dropped pin'
     : 'Pick a starting location to begin'
 
-  return (
-    <section className="mb-6 rounded-3xl border border-[var(--ui-border)] bg-gradient-to-br from-[var(--ui-surface)]/96 via-[var(--love-050)]/72 to-[var(--ui-surface-soft)]/92 p-5 shadow-[0_24px_60px_-32px_rgba(126,31,61,0.22)] backdrop-blur-sm sm:p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-2xl">
-          <p className="text-sm/6 font-semibold text-[var(--ui-text)]">
-            Choose where to start
-          </p>
-          <p className="mt-1 text-sm/6 text-[var(--ui-text-muted)]">
-            We default to your IP-based area. Use change location if you want to
-            switch to your current location, a city search, or a dropped pin.
-          </p>
-          <p className="mt-2 text-sm/6 font-semibold text-[var(--love-700)]">
-            {selectedLocationLabel}
-          </p>
+  const canContinue = selectedLocation !== null && !isResolvingIpLocation
 
-          {canEditLocation && (
-            <div className="mt-4 max-w-xl" ref={citySearchContainerRef}>
+  const handleContinue = () => {
+    if (!canContinue) {
+      return
+    }
+
+    navigate({
+      to: '.',
+      search: (prev) => ({
+        ...prev,
+        step: nextStep,
+      }),
+      resetScroll: false,
+    })
+  }
+
+  return (
+    <div className="mb-1 sm:mb-0">
+      <div className="max-w-2xl">
+        <p className="text-sm/6 font-semibold text-[var(--ui-text)]">
+          Choose where to start
+        </p>
+        <p className="mt-0.5 text-xs/5 text-[var(--ui-text-muted)] sm:text-sm/5">
+          We default to your IP-based area. Switch to your current location,
+          search a city, or drop a pin.
+        </p>
+      </div>
+
+      <div className="relative isolate -mx-4 mt-3 overflow-hidden rounded-[1.75rem] border border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_28px_70px_-38px_rgba(126,31,61,0.36)] sm:-mx-6 sm:mt-4 sm:rounded-[2rem]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 hidden p-4 sm:block">
+          <div className="flex items-start justify-between gap-4">
+            <div
+              className="pointer-events-auto w-[min(100%,24rem)] rounded-2xl border border-white/40 bg-[var(--ui-surface)]/68 px-3.5 py-2.5 shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)] backdrop-blur-lg"
+              ref={desktopCitySearchContainerRef}
+            >
               <label
                 htmlFor="city-search"
-                className="block text-sm/6 font-semibold text-[var(--love-700)]"
+                className="block text-sm/6 font-semibold text-[var(--ui-text)]"
               >
                 Search by city
               </label>
-              <div className="relative mt-2.5">
+              <div className="relative mt-2">
                 <input
                   id="city-search"
                   type="text"
@@ -514,61 +547,211 @@ export default function LocationGate() {
                 City search only. Street addresses are not supported.
               </p>
             </div>
-          )}
+
+            <div className="pointer-events-auto flex w-[min(14rem,100%)] flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={isRequestingLocation}
+                className="inline-flex min-h-10 w-full items-center justify-center rounded-md border border-[#6c1834] bg-gradient-to-r from-[#a33a4a] to-[#7e1f3d] px-3.5 py-2 text-sm font-semibold tracking-wide text-white shadow-[0_18px_30px_-18px_rgba(126,31,61,0.62)] transition duration-200 hover:-translate-y-0.5 hover:from-[#8e2f43] hover:to-[#6c1834] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#6c1834] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+              >
+                {isRequestingLocation
+                  ? 'Locating...'
+                  : 'Use my current location'}
+              </button>
+
+              {selectedLocation && (
+                <button
+                  type="button"
+                  onClick={handleToggleLocationPicker}
+                  className="inline-flex min-h-10 w-full items-center justify-center rounded-md border border-[var(--ui-border)] bg-[var(--ui-surface)]/88 px-3.5 py-2 text-sm font-semibold tracking-wide text-[var(--ui-text)] shadow-[0_14px_24px_-22px_rgba(126,31,61,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:bg-[var(--ui-surface-soft)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]"
+                >
+                  {isLocationPickerOpen ? 'Done changing' : 'Change location'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 p-3 sm:hidden">
+          <div
+            className="pointer-events-auto rounded-2xl border border-white/60 bg-[var(--ui-surface)]/90 px-3 py-2 shadow-[0_18px_30px_-22px_rgba(126,31,61,0.42)] backdrop-blur-xl"
+            ref={mobileCitySearchContainerRef}
+          >
+            <label htmlFor="mobile-city-search" className="sr-only">
+              Search by city
+            </label>
+            <div className="flex items-center gap-2">
+              <svg
+                aria-hidden="true"
+                className="h-5 w-5 shrink-0 text-[var(--ui-text-muted)]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m21 21-4.35-4.35m1.6-5.15a6.75 6.75 0 1 1-13.5 0 6.75 6.75 0 0 1 13.5 0Z"
+                />
+              </svg>
+              <input
+                id="mobile-city-search"
+                type="text"
+                autoComplete="off"
+                placeholder="Search city"
+                className="min-h-9 w-full bg-transparent text-base font-semibold text-[var(--ui-text)] outline-none placeholder:font-semibold placeholder:text-[var(--ui-text-muted)]"
+                value={cityQuery}
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={isCitySearchOpen}
+                aria-controls="mobile-city-search-listbox"
+                aria-activedescendant={
+                  highlightedCityIndex >= 0
+                    ? `mobile-city-search-option-${highlightedCityIndex}`
+                    : undefined
+                }
+                onFocus={() => {
+                  if (citySuggestions.length > 0) {
+                    setIsCitySearchOpen(true)
+                  }
+                }}
+                onChange={(event) => {
+                  setCityQuery(event.target.value)
+                  setIsCitySearchOpen(true)
+                }}
+                onKeyDown={handleCityInputKeyDown}
+              />
+            </div>
+
+            {isCitySearchOpen && cityQuery.trim().length >= 2 && (
+              <div
+                id="mobile-city-search-listbox"
+                role="listbox"
+                className="absolute top-[calc(100%+8px)] right-3 left-3 z-40 overflow-hidden rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-18px_rgba(126,31,61,0.22)]"
+              >
+                {isSearchingCities ? (
+                  <p className="px-3 py-2 text-sm/6 text-[var(--ui-text-muted)]">
+                    Searching cities...
+                  </p>
+                ) : citySuggestions.length > 0 ? (
+                  <ul className="max-h-56 overflow-auto py-1">
+                    {citySuggestions.map((city, index) => (
+                      <li
+                        key={`${city.label}-${city.latitude}-${city.longitude}`}
+                      >
+                        <button
+                          id={`mobile-city-search-option-${index}`}
+                          type="button"
+                          role="option"
+                          aria-selected={highlightedCityIndex === index}
+                          className={`w-full px-3 py-2.5 text-left text-sm transition ${
+                            highlightedCityIndex === index
+                              ? 'bg-[var(--love-050)] text-[var(--love-900)]'
+                              : 'text-[var(--ui-text)] hover:bg-[var(--ui-surface-soft)]'
+                          }`}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onMouseEnter={() => setHighlightedCityIndex(index)}
+                          onClick={() => handleSelectCity(city)}
+                        >
+                          {city.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="px-3 py-2 text-sm/6 text-[var(--ui-text-muted)]">
+                    No city matches found.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute right-3 bottom-[6.5rem] z-50 flex flex-col gap-2 sm:hidden">
           <button
             type="button"
             onClick={handleUseCurrentLocation}
             disabled={isRequestingLocation}
-            className="inline-flex min-h-11 items-center justify-center rounded-md border border-[#6c1834] bg-gradient-to-r from-[#a33a4a] to-[#7e1f3d] px-4 py-2.5 text-sm font-semibold tracking-wide text-white shadow-[0_18px_30px_-18px_rgba(126,31,61,0.62)] transition duration-200 hover:-translate-y-0.5 hover:from-[#8e2f43] hover:to-[#6c1834] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#6c1834] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+            className="pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/60 bg-[var(--ui-surface)]/92 text-[var(--love-700)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.44)] backdrop-blur-xl transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Use my current location"
           >
-            {isRequestingLocation ? 'Locating...' : 'Use my current location'}
+            <svg
+              aria-hidden="true"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 21 20 4l-17 8 7 2 2 7Z"
+              />
+            </svg>
           </button>
 
-          {selectedLocation && (
-            <button
-              type="button"
-              onClick={handleToggleLocationPicker}
-              className="inline-flex min-h-11 items-center justify-center rounded-md border border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-2.5 text-sm font-semibold tracking-wide text-[var(--ui-text)] shadow-[0_14px_24px_-22px_rgba(126,31,61,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:bg-[var(--ui-surface-soft)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-(--love-300)"
+          <button
+            type="button"
+            onClick={handleToggleLocationPicker}
+            className="pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/60 bg-[var(--ui-surface)]/92 text-[var(--ui-text)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.44)] backdrop-blur-xl transition active:scale-95"
+            aria-label={
+              isLocationPickerOpen ? 'Done dropping pin' : 'Drop a pin'
+            }
+          >
+            <svg
+              aria-hidden="true"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.2}
             >
-              {isLocationPickerOpen ? 'Done changing' : 'Change location'}
-            </button>
-          )}
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 21s6-5.25 6-11a6 6 0 1 0-12 0c0 5.75 6 11 6 11Z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 10.25h.01"
+              />
+            </svg>
+          </button>
         </div>
-      </div>
 
-      {locationError && (
-        <p
-          className="mt-4 rounded-md border border-[var(--love-300)] bg-[var(--love-050)]/96 px-4 py-3 text-sm text-[var(--ui-danger)]"
-          role="alert"
-        >
-          {locationError}
-        </p>
-      )}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-50 p-3 sm:hidden">
+          <div className="pointer-events-auto rounded-t-[2rem] rounded-b-[1.35rem] border border-white/40 bg-[var(--ui-surface)]/68 p-3 shadow-[0_-18px_42px_-28px_rgba(46,34,38,0.58)] backdrop-blur-lg">
+            <div className="mx-auto mb-2 h-1 w-12 rounded-full bg-[var(--ui-border)]" />
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold tracking-tight text-[var(--ui-text)]">
+                  {selectedLocationLabel}
+                </p>
+                <p className="mt-0.5 text-xs/4 text-[var(--ui-text-muted)]">
+                  Use the arrow for your location or the pin to choose a spot.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      {citySearchError && (
-        <p
-          className="mt-4 rounded-md border border-[var(--love-300)] bg-[var(--love-050)]/96 px-4 py-3 text-sm text-[var(--ui-danger)]"
-          role="alert"
-        >
-          {citySearchError}
-        </p>
-      )}
-
-      <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)]">
         <div
           ref={mapContainerRef}
-          className="relative h-[70vh] min-h-[520px] w-full"
+          className="relative z-0 h-[calc(100svh-18.5rem)] min-h-[25rem] w-full sm:h-[60vh] sm:min-h-0 lg:h-[48vh] xl:h-[44vh]"
           aria-label="Map"
         />
+
         {!isMapReady && (
-          <div className="flex h-[70vh] min-h-[520px] items-center justify-center bg-[var(--ui-surface-soft)] text-sm/6 text-[var(--ui-text-muted)]">
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-[var(--ui-surface-soft)] text-sm/6 text-[var(--ui-text-muted)]">
             Loading map...
           </div>
         )}
       </div>
-    </section>
+    </div>
   )
 }

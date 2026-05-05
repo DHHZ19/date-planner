@@ -19,6 +19,10 @@ function buildRawValue(selectedValues: string[], currentInput: string) {
   return nextValues.length > 0 ? nextValues.join(',') : ''
 }
 
+function normalizeRawValue(value: string | undefined) {
+  return value ?? ''
+}
+
 export type AutocompleteSuggestion = {
   value: string
   label: string
@@ -49,24 +53,45 @@ export default function AutocompleteMultiSelectField({
   onChange: (value: string | undefined) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const [selectedValues, setSelectedValues] = useState<string[]>(() =>
     parseCsv(defaultValue),
   )
   // Track what the user is currently typing after the last comma.
   const [currentInput, setCurrentInput] = useState('')
   const [isOpen, setIsOpen] = useState(false)
+  const [isInputFocused, setIsInputFocused] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [keyboardNavigationActive, setKeyboardNavigationActive] =
     useState(false)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const doneButtonRef = useRef<HTMLButtonElement | null>(null)
+  const previousResetKeyRef = useRef(resetKey)
+  const localRawValueRef = useRef(buildRawValue(parseCsv(defaultValue), ''))
+
+  const emitChange = (nextRawValue: string) => {
+    localRawValueRef.current = nextRawValue
+    onChange(nextRawValue.length > 0 ? nextRawValue : undefined)
+  }
 
   useEffect(() => {
+    const resetKeyChanged = resetKey !== previousResetKeyRef.current
+    previousResetKeyRef.current = resetKey
+
+    if (
+      !resetKeyChanged &&
+      normalizeRawValue(defaultValue) === localRawValueRef.current
+    ) {
+      return
+    }
+
     setSelectedValues(parseCsv(defaultValue))
     setCurrentInput('')
+    localRawValueRef.current = normalizeRawValue(defaultValue)
   }, [defaultValue, resetKey])
 
   const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues])
+  const canAddMoreSelections = selectedValues.length < maxSelections
 
   // Create a lookup map for value -> label
   const labelMap = useMemo(() => {
@@ -110,7 +135,10 @@ export default function AutocompleteMultiSelectField({
     setCurrentInput('')
 
     const nextRawValue = buildRawValue(nextValues, '')
-    onChange(nextRawValue.length > 0 ? nextRawValue : undefined)
+    emitChange(nextRawValue)
+    setActiveIndex(0)
+    setKeyboardNavigationActive(false)
+    window.requestAnimationFrame(() => inputRef.current?.focus())
   }
 
   useEffect(() => {
@@ -155,12 +183,10 @@ export default function AutocompleteMultiSelectField({
 
     const totalOptions = filteredSuggestions.length
     if (activeIndex === totalOptions) {
-      doneButtonRef.current?.focus()
       doneButtonRef.current?.scrollIntoView({ block: 'nearest' })
       return
     }
 
-    optionRefs.current[activeIndex]?.focus()
     optionRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' })
   }, [
     activeIndex,
@@ -183,8 +209,29 @@ export default function AutocompleteMultiSelectField({
     selectSuggestion(filteredSuggestions[activeIndex].value)
   }
 
+  const inputValue =
+    displayValue +
+    (currentInput
+      ? (displayValue ? ', ' : '') + currentInput
+      : isInputFocused && canAddMoreSelections && displayValue
+        ? ', '
+        : '')
+
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
     const totalOptions = filteredSuggestions.length
+
+    if (
+      event.target instanceof HTMLInputElement &&
+      event.key === 'Backspace' &&
+      currentInput.length === 0 &&
+      selectedValues.length > 0
+    ) {
+      event.preventDefault()
+      const nextValues = selectedValues.slice(0, -1)
+      setSelectedValues(nextValues)
+      emitChange(buildRawValue(nextValues, ''))
+      return
+    }
 
     if (!isOpen && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
       event.preventDefault()
@@ -246,6 +293,7 @@ export default function AutocompleteMultiSelectField({
     <div ref={containerRef} onKeyDown={handleKeyDown}>
       <div className="relative">
         <input
+          ref={inputRef}
           id={id}
           name={name}
           key={`${id}-${resetKey}`}
@@ -254,10 +302,7 @@ export default function AutocompleteMultiSelectField({
           autoComplete="off"
           aria-describedby={describedBy}
           placeholder={placeholder}
-          value={
-            displayValue +
-            (currentInput ? (displayValue ? ', ' : '') + currentInput : '')
-          }
+          value={inputValue}
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={isOpen}
@@ -270,6 +315,7 @@ export default function AutocompleteMultiSelectField({
               : undefined
           }
           onFocus={() => {
+            setIsInputFocused(true)
             setIsOpen(true)
             setActiveIndex(0)
             setKeyboardNavigationActive(false)
@@ -286,13 +332,14 @@ export default function AutocompleteMultiSelectField({
               }
 
               setIsOpen(false)
+              setIsInputFocused(false)
               setKeyboardNavigationActive(false)
             }, 100)
           }}
           onChange={(e) => {
-            const inputValue = e.target.value
+            const nextInputValue = e.target.value
 
-            const parts = inputValue.split(/,\s*/)
+            const parts = nextInputValue.split(/,\s*/)
             const lastPart = parts[parts.length - 1] ?? ''
 
             const previousLabels = parts.slice(0, -1)
@@ -310,7 +357,7 @@ export default function AutocompleteMultiSelectField({
             setCurrentInput(lastPart)
 
             const nextRawValue = buildRawValue(previousRawValues, lastPart)
-            onChange(nextRawValue.length > 0 ? nextRawValue : undefined)
+            emitChange(nextRawValue)
             setActiveIndex(0)
             setKeyboardNavigationActive(false)
           }}

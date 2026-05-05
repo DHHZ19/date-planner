@@ -7,7 +7,6 @@ import FoodAutocompleteField from '#/components/questions/fields/FoodAutocomplet
 import ActivityBrowseCategoryField from '#/components/questions/fields/ActivityBrowseCategoryField'
 import ActivitySearchModeField from '#/components/questions/fields/ActivitySearchModeField'
 import ActivityIdeaCountField from '#/components/questions/fields/ActivityIdeaCountField'
-import ActivitySettingField from '#/components/questions/fields/ActivitySettingField'
 import DateVibeField from '#/components/questions/fields/DateVibeField'
 import { QUESTION_FIELD_CONFIGS } from './question-config'
 
@@ -132,18 +131,6 @@ export default function QuestionFieldRenderer({
   if (fieldConfig.fieldType === 'activityBrowseCategory') {
     return (
       <ActivityBrowseCategoryField
-        id={inputId}
-        name={inputName}
-        value={value}
-        describedBy={describedBy}
-        onChange={onChange}
-      />
-    )
-  }
-
-  if (fieldConfig.fieldType === 'activitySetting') {
-    return (
-      <ActivitySettingField
         id={inputId}
         name={inputName}
         value={value}

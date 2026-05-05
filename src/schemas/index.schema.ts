@@ -122,7 +122,6 @@ export const searchStateSchema = z.object({
     activityBrowseCategorySchema.optional().catch(undefined),
   ),
   activityTypes: optionalTextSearchParamSchema.catch(undefined),
-  activitySetting: optionalTextSearchParamSchema.catch(undefined),
   dateVibe: optionalTextSearchParamSchema.catch(undefined),
   food: optionalTextSearchParamSchema.catch(undefined),
   priceLevel: priceLevelCsvSchema.catch(undefined),
