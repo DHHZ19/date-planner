@@ -10,9 +10,17 @@ const StepIndicator = ({
   currentSection: QuestionSection
 }) => {
   return (
-    <div className="mb-6">
-      {/* Progress bar */}
-      <div className="mb-4 flex items-center gap-2">
+    <div className="mb-4 sm:mb-6">
+      {/* Mobile Progress bar */}
+      <div className="mb-3 flex h-2 w-full overflow-hidden rounded-full bg-[var(--ui-border)] sm:hidden">
+        <div
+          className="h-full rounded-full bg-[#a33a4a] transition-all duration-300 ease-out"
+          style={{ width: `${(currentPage / totalPages) * 100}%` }}
+        />
+      </div>
+
+      {/* Desktop Progress bar */}
+      <div className="mb-4 hidden items-center gap-2 sm:flex">
         {Array.from({ length: totalPages }, (_, index) => {
           const pageNum = index + 1
           const isCompleted = pageNum < currentPage
@@ -63,11 +71,11 @@ const StepIndicator = ({
       </div>
 
       {/* Step info */}
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-0.5 sm:gap-1">
         <p className="text-xs font-medium tracking-wider text-[var(--ui-text-muted)] uppercase">
           Step {currentPage} of {totalPages}
         </p>
-        <p className="text-lg font-semibold text-[var(--ui-text)]">
+        <p className="text-base font-semibold text-[var(--ui-text)] sm:text-lg">
           {currentSection.page === 1 ? 'Date Basics' : 'Mood & Activities'}
         </p>
       </div>

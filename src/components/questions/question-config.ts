@@ -1,6 +1,7 @@
 import type { AnswerKey, QuestionSection } from '#/types/index-route.types'
 
 export type QuestionFieldType =
+  | 'location'
   | 'text'
   | 'dateTime'
   | 'priceLevel'
@@ -8,7 +9,6 @@ export type QuestionFieldType =
   | 'activitySearchMode'
   | 'activityIdeaCount'
   | 'activityBrowseCategory'
-  | 'activitySetting'
   | 'dateVibe'
 
 export type QuestionFieldConfig = {
@@ -23,21 +23,8 @@ export const QUESTION_SECTIONS: QuestionSection[] = [
     page: 1,
     questions: [
       {
-        prompt: 'What time are you planning to go on your date?',
-        promptKey: 'dateTime',
-      },
-      {
-        prompt:
-          'What kind of food are you feeling? (type or pick from suggestions)',
-        promptKey: 'food',
-      },
-      {
-        prompt: 'Distance (in miles)',
-        promptKey: 'distance',
-      },
-      {
-        prompt: 'Price Level',
-        promptKey: 'priceLevel',
+        prompt: 'Choose where to start',
+        promptKey: 'location',
       },
     ],
   },
@@ -45,9 +32,51 @@ export const QUESTION_SECTIONS: QuestionSection[] = [
     page: 2,
     questions: [
       {
+        prompt: 'What time are you planning to go on your date?',
+        promptKey: 'dateTime',
+      },
+    ],
+  },
+  {
+    page: 3,
+    questions: [
+      {
+        prompt:
+          'What kind of food are you feeling? (type or pick from suggestions)',
+        promptKey: 'food',
+      },
+    ],
+  },
+  {
+    page: 4,
+    questions: [
+      {
+        prompt: 'Distance (in miles)',
+        promptKey: 'distance',
+      },
+    ],
+  },
+  {
+    page: 5,
+    questions: [
+      {
+        prompt: 'Price Level',
+        promptKey: 'priceLevel',
+      },
+    ],
+  },
+  {
+    page: 6,
+    questions: [
+      {
         prompt: 'How do you want to choose activities?',
         promptKey: 'activitySearchMode',
       },
+    ],
+  },
+  {
+    page: 7,
+    questions: [
       {
         prompt: 'What kind of date ideas should we browse?',
         promptKey: 'activityBrowseCategory',
@@ -56,19 +85,12 @@ export const QUESTION_SECTIONS: QuestionSection[] = [
         prompt: 'What activities would you like to do on this date?',
         promptKey: 'activityTypes',
       },
-      {
-        prompt: 'Do you prefer indoor, outdoor, or a mix of activities?',
-        promptKey: 'activitySetting',
-      },
-      {
-        prompt: 'What vibes are you going for?',
-        promptKey: 'dateVibe',
-      },
     ],
   },
 ]
 
 export const QUESTION_FIELD_CONFIGS: Record<AnswerKey, QuestionFieldConfig> = {
+  location: { key: 'location', fieldType: 'location', layout: 'full' },
   dateTime: { key: 'dateTime', fieldType: 'dateTime', layout: 'half' },
   startingArea: { key: 'startingArea', fieldType: 'text', layout: 'half' },
   duration: { key: 'duration', fieldType: 'text', layout: 'half' },
@@ -92,13 +114,6 @@ export const QUESTION_FIELD_CONFIGS: Record<AnswerKey, QuestionFieldConfig> = {
       'Pick a lane, or choose Popular Date Spots if you want broad inspiration.',
   },
   activityTypes: { key: 'activityTypes', fieldType: 'text', layout: 'full' },
-  activitySetting: {
-    key: 'activitySetting',
-    fieldType: 'activitySetting',
-    layout: 'full',
-    helperText:
-      'Choose whether you prefer indoor venues, outdoor spaces, or a mix.',
-  },
   dateVibe: {
     key: 'dateVibe',
     fieldType: 'dateVibe',

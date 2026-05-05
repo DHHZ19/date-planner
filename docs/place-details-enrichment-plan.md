@@ -71,7 +71,6 @@ places.allowsDogs
 places.currentOpeningHours,
 places.businessStatus,
 places.openingDate,
-places.utcOffsetMinutes
 ```
 
 **Tier 4: Deep Review Data (Limited)**

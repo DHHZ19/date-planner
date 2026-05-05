@@ -35,8 +35,6 @@ POST request. For example:
 curl -X POST -d '{
   "includedTypes": ["restaurant"],
   "maxResultCount": 10,
-  "locationRestriction": {
-    "circle": {
       "center": {
         "latitude": 37.7937,
         "longitude": -122.3965},
@@ -57,8 +55,6 @@ Nearby Search (New) returns a
 - The `places` array contains all matching places.
 - Each place in the array is represented by a [`Place`](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places) object. The `Place` object contains detailed information about a single place.
 - The [FieldMask](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask) passed in the request specifies the list of fields returned in the `Place` object.
-
-The complete JSON object is in the form:
 
 ```json
 {
@@ -87,10 +83,9 @@ The complete JSON object is in the form:
 
   Specify a comma-separated list of place data types to return. For example,
   to retrieve the display name and the address of the place.
-
-  ```javascript
   X-Goog-FieldMask: places.displayName,places.formattedAddress
-  ```
+
+  ````
 
   > [!NOTE]
   > **Note:**Spaces are not allowed anywhere in the field list.
@@ -99,7 +94,7 @@ The complete JSON object is in the form:
 
   ```javascript
   X-Goog-FieldMask: *
-  ```
+  ````
 
   > [!NOTE]
   > While the wildcard (\*) is fine to use in development, Google discourages the use of the wildcard response field mask in production because of the large amount of data that can be returned.
@@ -114,8 +109,6 @@ The complete JSON object is in the form:
 
     `places.addressComponents`
 
-    `places.addressDescriptor`^\*^
-
     `places.adrFormatAddress`
 
     `places.attributions`
@@ -125,10 +118,6 @@ The complete JSON object is in the form:
     `places.containingPlaces`
 
     `places.displayName`
-
-    `places.formattedAddress`
-
-    `places.googleMapsLinks`
 
     `places.googleMapsUri`
 
@@ -211,8 +200,6 @@ The complete JSON object is in the form:
     `places.delivery`
 
     `places.dineIn`
-
-    `places.editorialSummary`
 
     `places.evChargeAmenitySummary`
 
