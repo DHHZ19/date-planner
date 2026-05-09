@@ -107,6 +107,7 @@ export function useQuestionSearchState() {
         latitude: number
         longitude: number
         locationSource: 'ip' | 'current' | 'pin' | 'typed'
+        locationLabel?: string
       } | null,
     ) => {
       flushPendingUpdate()
@@ -118,6 +119,7 @@ export function useQuestionSearchState() {
           latitude: location?.latitude,
           longitude: location?.longitude,
           locationSource: location?.locationSource,
+          locationLabel: location?.locationLabel,
         }),
         resetScroll: false,
         replace: true,

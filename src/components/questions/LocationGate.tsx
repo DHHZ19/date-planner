@@ -12,6 +12,7 @@ type SelectedLocation = {
   latitude: number
   longitude: number
   locationSource: 'ip' | 'current' | 'pin' | 'typed'
+  locationLabel?: string
 }
 
 type CitySuggestion = {
@@ -23,9 +24,11 @@ type CitySuggestion = {
 export default function LocationGate({
   nextStep,
   onErrorChange,
+  compact = false,
 }: {
   nextStep: number
   onErrorChange: (message: string | null) => void
+  compact?: boolean
 }) {
   const { search, setLocation } = useQuestionSearchState()
   const { requestCurrentLocation, isRequestingLocation, locationError } =
@@ -58,6 +61,7 @@ export default function LocationGate({
           latitude: search.latitude,
           longitude: search.longitude,
           locationSource: search.locationSource ?? 'ip',
+          locationLabel: search.locationLabel,
         }
       : null
   const canEditLocation =
@@ -171,6 +175,7 @@ export default function LocationGate({
       latitude: city.latitude,
       longitude: city.longitude,
       locationSource: 'typed',
+      locationLabel: city.label,
     })
     setIsLocationPickerOpen(false)
   }
@@ -257,6 +262,13 @@ export default function LocationGate({
           .then((res) => res.json())
           .then((data) => {
             if (data.latitude && data.longitude && mapRef.current) {
+              const ipLocationLabel = [data.city, data.region]
+                .filter(
+                  (value): value is string =>
+                    typeof value === 'string' && value.trim().length > 0,
+                )
+                .join(', ')
+
               mapRef.current.flyTo([data.latitude, data.longitude], 10, {
                 duration: 2,
                 easeLinearity: 0.25,
@@ -267,6 +279,7 @@ export default function LocationGate({
                   latitude: data.latitude,
                   longitude: data.longitude,
                   locationSource: 'ip',
+                  locationLabel: ipLocationLabel || 'Nearby area',
                 })
               }
             }
@@ -291,6 +304,7 @@ export default function LocationGate({
           latitude: event.latlng.lat,
           longitude: event.latlng.lng,
           locationSource: 'pin',
+          locationLabel: 'Map pin',
         })
         setIsLocationPickerOpen(false)
       })
@@ -299,7 +313,9 @@ export default function LocationGate({
       setIsMapReady(true)
 
       const invalidateMap = () => {
-        map.invalidateSize({ debounceMoveend: true })
+        if (mapContainerRef.current && map._container) {
+          map.invalidateSize({ debounceMoveend: true })
+        }
       }
 
       window.requestAnimationFrame(invalidateMap)
@@ -389,6 +405,7 @@ export default function LocationGate({
           latitude: coordinates.latitude,
           longitude: coordinates.longitude,
           locationSource: 'current',
+          locationLabel: 'Current location',
         })
         setIsLocationPickerOpen(false)
       }, 900)
@@ -398,6 +415,7 @@ export default function LocationGate({
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
         locationSource: 'current',
+        locationLabel: 'Current location',
       })
       setIsLocationPickerOpen(false)
     }
@@ -742,7 +760,7 @@ export default function LocationGate({
 
         <div
           ref={mapContainerRef}
-          className="relative z-0 h-[calc(100svh-18.5rem)] min-h-[25rem] w-full sm:h-[60vh] sm:min-h-0 lg:h-[48vh] xl:h-[44vh]"
+          className={`relative z-0 w-full ${compact ? 'h-64 min-h-0 sm:h-72' : 'h-[calc(100svh-18.5rem)] min-h-[25rem] sm:h-[60vh] sm:min-h-0 lg:h-[48vh] xl:h-[44vh]'}`}
           aria-label="Map"
         />
 

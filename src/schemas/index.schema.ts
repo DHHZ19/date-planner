@@ -102,8 +102,39 @@ export const activityBrowseCategorySchema = z.enum([
   'unique_memorable',
 ])
 
+export const planTypeSchema = z.enum([
+  'restaurant',
+  'date_vibe',
+  'activity',
+  'event',
+])
+
+const planTypeCsvSchema = z
+  .preprocess(
+    (value) => {
+      if (typeof value !== 'string') {
+        return undefined
+      }
+
+      const values = value
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+
+      return values.length > 0 ? values : undefined
+    },
+    z
+      .array(planTypeSchema)
+      .max(4)
+      .refine((values) => new Set(values).size === values.length)
+      .optional(),
+  )
+  .transform((values) => values?.join(','))
+
 export const searchStateSchema = z.object({
+  mode: z.enum(['guided', 'quick']).optional().catch(undefined),
   step: stepSchema.catch(1),
+  planTypes: planTypeCsvSchema.catch(undefined),
   dateTime: z.preprocess(
     (value) => (value === '' ? undefined : value),
     dateTimeSchema.catch('Now'),
@@ -139,6 +170,7 @@ export const searchStateSchema = z.object({
     (value) => (value === '' ? undefined : value),
     locationSourceSchema.optional().catch(undefined),
   ),
+  locationLabel: optionalTextSearchParamSchema.catch(undefined),
 })
 
 export const stringArraySchema = z.array(z.string())

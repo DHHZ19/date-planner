@@ -11,7 +11,6 @@ import type {
   ActivityBrowseCategory,
   DatePlanResponse,
   DateTimeOption,
-  GoogleDisplayName,
   GoogleSearchTextResponse,
   NearbyPlace,
   NearbyPlacesResponse,
@@ -38,9 +37,6 @@ const GOOGLE_SEARCH_FIELD_MASK =
   'places.primaryTypeDisplayName,' +
   'places.businessStatus,' +
   'places.currentOpeningHours,' +
-  'places.websiteUri,' +
-  'places.googleMapsUri,' +
-  'places.photos,' +
   'places.priceLevel,' +
   'places.rating,' +
   'places.userRatingCount'
@@ -53,9 +49,6 @@ const GOOGLE_PLACE_DETAILS_FIELD_MASK =
   'types,' +
   'primaryType,' +
   'primaryTypeDisplayName,' +
-  'businessStatus,' +
-  'currentOpeningHours,' +
-  'websiteUri,' +
   'googleMapsUri,' +
   'photos,' +
   'priceLevel,' +
@@ -78,65 +71,59 @@ const GOOGLE_PLACE_DETAILS_FIELD_MASK =
   'servesDinner,' +
   'servesLunch,' +
   'menuForChildren,' +
-  'allowsDogs,' +
-  'accessibilityOptions'
+  'allowsDogs'
 const MILES_TO_METERS = 1609.344
 const MAX_NEARBY_SEARCH_RADIUS_METERS = 50_000
-const MAX_GOOGLE_PLACES_RESULTS = 20
+const MAX_GOOGLE_PLACES_RESULTS = 10
 const MAX_CITY_AUTOCOMPLETE_RESULTS = 6
-const DEFAULT_DETAILS_ENRICHMENT_LIMIT = 8
-const MAX_DETAILS_ENRICHMENT_LIMIT = 15
-const DETAILS_ENRICHMENT_BUFFER = 3
-const PLACE_DETAILS_CACHE_TTL_MS = 30 * 60 * 1000
-type QueryKind = 'restaurant' | 'activity'
+const PLACE_DETAILS_CACHE_TTL_MS = 1000 * 60 * 15
 
 const placeDetailsCache = new Map<
   string,
-  { place: NearbyPlace; expiresAt: number }
+  {
+    place: NearbyPlace
+    expiresAt: number
+  }
 >()
 
-const CITY_PLACE_TYPES = new Set(['city', 'town', 'village', 'municipality'])
-const CITY_AUTOCOMPLETE_RESULT_TYPES = new Set([
-  'administrative',
-  'city',
-  'municipality',
-  'place',
-  'town',
-  'village',
-])
+type QueryKind = 'restaurant' | 'activity' | 'date_vibe'
 
-type NominatimCityResult = {
-  lat: string
-  lon: string
-  type?: string
-  addresstype?: string
-  address?: {
-    city?: string
-    town?: string
-    village?: string
-    municipality?: string
-    state?: string
-    country?: string
-  }
-}
+const DATE_VIBE_PLACE_TYPES = [
+  'bar',
+  'cocktail_bar',
+  'beer_garden',
+  'brewery',
+  'brewpub',
+  'vineyard',
+  'cafe',
+  'coffee_shop',
+  'coffee_roastery',
+  'coffee_stand',
+  'dessert_shop',
+  'dessert_restaurant',
+  'ice_cream_shop',
+  'bakery',
+  'observation_deck',
+  'scenic_spot',
+  'garden',
+  'plaza',
+  'art_gallery',
+]
 
-const buildCityLabel = (result: NominatimCityResult) => {
-  const cityName =
-    result.address?.city ??
-    result.address?.town ??
-    result.address?.village ??
-    result.address?.municipality
-
-  if (!cityName) {
-    return null
-  }
-
-  const suffix = [result.address?.state, result.address?.country]
-    .filter((value) => typeof value === 'string' && value.trim().length > 0)
-    .join(', ')
-
-  return suffix.length > 0 ? `${cityName}, ${suffix}` : cityName
-}
+const DATE_VIBE_EXCLUDED_PRIMARY_TYPES = [
+  'restaurant',
+  'fine_dining_restaurant',
+  'breakfast_restaurant',
+  'brunch_restaurant',
+  'family_restaurant',
+  'fast_food_restaurant',
+  'bar_and_grill',
+  'bistro',
+  'buffet_restaurant',
+  'diner',
+  'food_court',
+  'gastropub',
+]
 
 const GOOGLE_TEXT_FIELD_PROMPT_SUFFIX: Record<
   'food' | 'activityTypes' | 'dateVibe',
@@ -145,18 +132,6 @@ const GOOGLE_TEXT_FIELD_PROMPT_SUFFIX: Record<
   food: 'food',
   activityTypes: 'activity types',
   dateVibe: 'date vibe',
-}
-
-const getDetailsEnrichmentLimit = (searchState: SearchState) => {
-  const requestedCount = Number(searchState.activityIdeaCount)
-  if (!Number.isFinite(requestedCount) || requestedCount <= 0) {
-    return DEFAULT_DETAILS_ENRICHMENT_LIMIT
-  }
-
-  return Math.min(
-    Math.ceil(requestedCount) + DETAILS_ENRICHMENT_BUFFER,
-    MAX_DETAILS_ENRICHMENT_LIMIT,
-  )
 }
 
 const logPlacesTiming = ({
@@ -172,6 +147,25 @@ const logPlacesTiming = ({
     durationMs: Date.now() - startedAt,
     ...metadata,
   })
+}
+
+const logPlacesError = ({
+  label,
+  error,
+}: {
+  label: string
+  error: unknown
+}) => {
+  if (error instanceof Error) {
+    console.error(`[places] ${label}`, {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    })
+    return
+  }
+
+  console.error(`[places] ${label}`, error)
 }
 
 /**
@@ -489,21 +483,57 @@ const buildFallbackAiReason = ({
     : 'Recommended based on your selected preferences and overall date fit.'
 }
 
+const buildFallbackAiSummary = ({
+  places,
+  settings,
+}: {
+  places: NearbyPlace[]
+  settings: RefinementSettings
+}) => {
+  const dateVibe = settings.dateVibe
+    ? `the ${settings.dateVibe.toLowerCase()} vibe you wanted`
+    : 'your date preferences'
+  const categoryLabel =
+    settings.queryKind === 'restaurant'
+      ? 'restaurant picks'
+      : settings.queryKind === 'date_vibe'
+        ? 'date and vibes picks'
+        : 'activity picks'
+  const strongSignalCount = places.filter(
+    (place) => typeof place.rating === 'number' && place.rating >= 4,
+  ).length
+
+  if (places.length === 0) {
+    return 'The match could be better because there were not enough strong nearby options for these preferences. Try widening the distance or loosening one preference to surface more date-worthy choices.'
+  }
+
+  const qualitySignal =
+    strongSignalCount > 0
+      ? 'strong ratings and useful place details'
+      : 'the closest available place details'
+
+  return `These ${categoryLabel} were chosen because they line up well with ${dateVibe} while balancing ${qualitySignal}. They should give you a positive, date-friendly starting point with options that fit the area and overall plan.`
+}
+
 const attachFallbackReasoning = (
   places: NearbyPlace[],
   settings: RefinementSettings,
-): NearbyPlace[] =>
-  places.map((place) => ({
+): NearbyPlace[] => {
+  const summary = buildFallbackAiSummary({ places, settings })
+
+  return places.map((place) => ({
     ...place,
     reasoning: {
       ai: {
         reason: buildFallbackAiReason({ place, settings }),
+        summary,
         score: null,
         rank: null,
       },
       google: getGoogleReasoningSummaries(place),
     },
   }))
+}
 
 type RefinementSettings = {
   queryKind: QueryKind
@@ -553,6 +583,7 @@ const rankedPlaceSelectionSchema = z.object({
 })
 
 const rankedPlaceObjectArraySchema = z.object({
+  summary: z.string().min(1).optional(),
   rankedPlaceIds: z
     .array(rankedPlaceSelectionSchema)
     .max(MAX_GOOGLE_PLACES_RESULTS),
@@ -563,6 +594,11 @@ const rankedPlaceStringArraySchema = z.object({
 })
 
 type RankedPlaceSelection = z.infer<typeof rankedPlaceSelectionSchema>
+
+type RankedPlaceResponse = {
+  rankedPlaceIds: RankedPlaceSelection[]
+  summary: string | null
+}
 
 const extractTextCandidatesFromResponseOutput = (output: unknown) => {
   if (typeof output === 'string') {
@@ -605,7 +641,7 @@ const extractTextCandidatesFromResponseOutput = (output: unknown) => {
 
 const parseRankedPlaceIdsFromOutput = (
   output: unknown,
-): RankedPlaceSelection[] => {
+): RankedPlaceResponse => {
   const rawCandidates = extractTextCandidatesFromResponseOutput(output)
   const candidateStrings = rawCandidates.flatMap((candidate) => [
     candidate.trim(),
@@ -630,18 +666,26 @@ const parseRankedPlaceIdsFromOutput = (
       parsedJson.data,
     )
     if (parsedObjectArray.success) {
-      return parsedObjectArray.data.rankedPlaceIds
+      return {
+        rankedPlaceIds: parsedObjectArray.data.rankedPlaceIds,
+        summary: parsedObjectArray.data.summary?.trim() || null,
+      }
     }
 
     const parsedStringArray = rankedPlaceStringArraySchema.safeParse(
       parsedJson.data,
     )
     if (parsedStringArray.success) {
-      return parsedStringArray.data.rankedPlaceIds.map((id) => ({ id }))
+      return {
+        rankedPlaceIds: parsedStringArray.data.rankedPlaceIds.map((id) => ({
+          id,
+        })),
+        summary: null,
+      }
     }
   }
 
-  return [] as RankedPlaceSelection[]
+  return { rankedPlaceIds: [] as RankedPlaceSelection[], summary: null }
 }
 
 // Place types and signals that indicate a place is obviously inappropriate for dates
@@ -837,7 +881,9 @@ const refinePlacesWithAI = async ({
   const preferenceValues =
     settings.queryKind === 'restaurant'
       ? [settings.food, settings.dateVibe]
-      : [settings.activityTypes, settings.dateVibe]
+      : settings.queryKind === 'date_vibe'
+        ? ['Date & Vibes', settings.dateVibe]
+        : [settings.activityTypes, settings.dateVibe]
 
   const hasPreferenceSettings = preferenceValues.some(
     (value) => typeof value === 'string' && value.length > 0,
@@ -951,8 +997,14 @@ const refinePlacesWithAI = async ({
 
     const activityRubric = `ACTIVITY-SPECIFIC RUBRIC (0-100 total):\n1. Date-vibe match (0-30): experiential fit, energy level, and intimacy potential using summaries + types + amenities.\n2. Review-based quality signal (0-25): review sentiment about atmosphere, pacing, crowding, staff friendliness, value.\n3. Uniqueness & memorability (0-15): distinctive qualities, "wow factor," story-worthy elements.\n4. Practical reliability (0-15): rating, review count, open status, accessibility.\n5. Time-and-setting fit (0-10): dateTime appropriateness (outdoor in afternoon, nightlife in evening).\n6. Group/interactive fit (0-5): good for pairs, not just groups/families.`
 
+    const dateVibeRubric = `DATE & VIBES-SPECIFIC RUBRIC (0-100 total):\n1. Date-vibe match (0-30): romantic, low-pressure, stylish, scenic, or treat-worthy setting using summaries + types + amenities.\n2. Quality and reliability (0-25): rating, review sentiment, crowding/wait/noise signals, and business status.\n3. Conversation and pacing fit (0-15): easy to enjoy without a full meal or long structured activity.\n4. Drinks/treats/view appeal (0-15): cocktails, wine, coffee, dessert, scenery, art, or memorable ambiance.\n5. Time fit (0-10): coffee/brunch by day, drinks/dessert/scenic evening fit by night.\n6. Distinctiveness (0-5): special enough to feel like a date stop.`
+
     const rubric =
-      settings.queryKind === 'restaurant' ? restaurantRubric : activityRubric
+      settings.queryKind === 'restaurant'
+        ? restaurantRubric
+        : settings.queryKind === 'date_vibe'
+          ? dateVibeRubric
+          : activityRubric
 
     const client = new OpenAI({ apiKey })
     const response = await client.responses.create({
@@ -1003,9 +1055,13 @@ REASONING REQUIREMENTS:
 - Each reason must reference at least one concrete signal from summaries or reviews (e.g., cozy atmosphere, loud environment, long waits, scenic vibe, excellent service).
 - Keep each reason to 1 sentence, specific and non-generic.
 - If summary/review evidence is sparse, state uncertainty briefly rather than over-claiming.
+- Also write one overall summary for the whole returned set, not for any single place.
+- The overall summary must be warm, positive, and confidence-building. Describe why these choices are good date options as a group, tying them to the user's preferences, vibe, area, quality signals, and variety where available.
+- Do not write a negative or apologetic overall summary unless there are truly no suitable matches in the candidate data. In that rare case, say the match could be better and briefly explain the practical limitation while still being helpful.
+- Keep the overall summary to 2 concise sentences.
 
 Return valid JSON:
-{"rankedPlaceIds":[
+{"summary":"positive 2-sentence explanation of why this set of choices works well as a group","rankedPlaceIds":[
   {"id": "place_id", "score": 95, "reason": "brief explanation of why this is a top match"},
   {"id": "place_id", "score": 82, "reason": "explanation"}
 ]}
@@ -1018,7 +1074,8 @@ Output rules:
 Candidates: ${JSON.stringify(candidatePlaces)}`,
     })
 
-    const rawRankedPlaceIds = parseRankedPlaceIdsFromOutput(response.output)
+    const parsedRankedResponse = parseRankedPlaceIdsFromOutput(response.output)
+    const rawRankedPlaceIds = parsedRankedResponse.rankedPlaceIds
 
     // Deduplicate AI output in case the model hallucinates repeated IDs
     const seenRankedIds = new Set<string>()
@@ -1056,6 +1113,9 @@ Candidates: ${JSON.stringify(candidatePlaces)}`,
         },
       ]),
     )
+    const summary =
+      parsedRankedResponse.summary ??
+      buildFallbackAiSummary({ places: sortedPlaces, settings })
 
     const rankedIds = new Set(
       rankedPlaces
@@ -1078,6 +1138,7 @@ Candidates: ${JSON.stringify(candidatePlaces)}`,
                 place,
                 settings,
               }),
+            summary,
             score: rankedMeta?.score ?? null,
             rank: rankedMeta?.rank ?? null,
           },
@@ -1088,8 +1149,53 @@ Candidates: ${JSON.stringify(candidatePlaces)}`,
 
     return finalResult
   } catch (error) {
-    return sortedPlaces
+    return attachFallbackReasoning(sortedPlaces, settings)
   }
+}
+
+const preScoreAndSortPlaces = (
+  places: NearbyPlace[],
+  priceLevel?: z.infer<typeof priceLevelArraySchema>,
+) => {
+  return [...places].sort((a, b) => {
+    // Basic score starts at 0
+    let scoreA = 0
+    let scoreB = 0
+
+    // Rating (huge impact)
+    const ratingA = typeof a.rating === 'number' ? a.rating : 3.0
+    const ratingB = typeof b.rating === 'number' ? b.rating : 3.0
+    scoreA += ratingA * 10
+    scoreB += ratingB * 10
+
+    // User Rating Count (diminishing returns, but rewards established places)
+    const countA = typeof a.userRatingCount === 'number' ? a.userRatingCount : 0
+    const countB = typeof b.userRatingCount === 'number' ? b.userRatingCount : 0
+    scoreA += Math.min(countA / 100, 20)
+    scoreB += Math.min(countB / 100, 20)
+
+    // Price Level Match
+    if (priceLevel && priceLevel.length > 0) {
+      const parsedPriceA = priceLevelSchema.safeParse(a.priceLevel)
+      const parsedPriceB = priceLevelSchema.safeParse(b.priceLevel)
+
+      if (parsedPriceA.success && priceLevel.includes(parsedPriceA.data)) {
+        scoreA += 5
+      }
+      if (parsedPriceB.success && priceLevel.includes(parsedPriceB.data)) {
+        scoreB += 5
+      }
+    }
+
+    // Original Search Order (preserves Google's text relevance slightly)
+    const indexA = places.indexOf(a)
+    const indexB = places.indexOf(b)
+    // Small penalty for being lower in the original results
+    scoreA -= indexA * 0.5
+    scoreB -= indexB * 0.5
+
+    return scoreB - scoreA // Descending order
+  })
 }
 
 const fetchPlacesForQuery = async ({
@@ -1101,7 +1207,6 @@ const fetchPlacesForQuery = async ({
   priceLevel,
   distanceMiles,
   searchState,
-  includeTicketmaster = true,
 }: {
   latitude: number
   longitude: number
@@ -1111,7 +1216,6 @@ const fetchPlacesForQuery = async ({
   priceLevel?: z.infer<typeof priceLevelArraySchema>
   distanceMiles: string
   searchState: SearchState
-  includeTicketmaster?: boolean
 }) => {
   const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
   const miles = Number(distanceMiles)
@@ -1163,22 +1267,12 @@ const fetchPlacesForQuery = async ({
   }
 
   const placesData = (await res.json()) as GoogleSearchTextResponse
-  const places: NearbyPlace[] = placesData.places ?? []
+  const places = (placesData.places ?? []) as NearbyPlace[]
   logPlacesTiming({
     label: `${queryKind} text search`,
     startedAt: searchStartedAt,
     metadata: { resultCount: places.length },
   })
-
-  const ticketmasterPlaces = includeTicketmaster
-    ? await fetchTicketmasterEvents({
-        latitude,
-        longitude,
-        radiusMiles: distanceMiles,
-        dateTime,
-        keyword: search,
-      })
-    : []
 
   const validDateTimePlaces = filterPlacesByDateTime(places, dateTime)
 
@@ -1189,10 +1283,15 @@ const fetchPlacesForQuery = async ({
 
   const ratingFilteredPlaces = filterPlacesByRating(priceFilteredPlaces)
 
-  const detailsLimit = getDetailsEnrichmentLimit(searchState)
+  const prescoredPlaces = preScoreAndSortPlaces(
+    ratingFilteredPlaces,
+    priceLevel,
+  )
+
+  const detailsLimit = 3 // Limit to top 3 candidates per branch for cost savings
   const detailsStartedAt = Date.now()
   const enrichedPlaces = await enrichPlacesWithDetails(
-    ratingFilteredPlaces,
+    prescoredPlaces,
     detailsLimit,
   )
   logPlacesTiming({
@@ -1206,9 +1305,18 @@ const fetchPlacesForQuery = async ({
   })
 
   const refinedPlaces = await refinePlacesWithAI({
-    places: [...enrichedPlaces, ...ticketmasterPlaces],
+    places: enrichedPlaces,
     search,
     settings,
+  })
+
+  logPlacesTiming({
+    label: `${queryKind} final results`,
+    startedAt: searchStartedAt,
+    metadata: {
+      googleCount: enrichedPlaces.length,
+      finalCount: refinedPlaces.length,
+    },
   })
 
   return refinedPlaces as NearbyPlacesResponse
@@ -1258,8 +1366,9 @@ const fetchActivitiesNearby = async ({
   const typesToSearch = placeTypes.slice(0, 50)
   const searchStartedAt = Date.now()
 
-  const [res, ticketmasterPlaces] = await Promise.all([
-    fetch(`https://places.googleapis.com/v1/places:searchNearby`, {
+  const res = await fetch(
+    `https://places.googleapis.com/v1/places:searchNearby`,
+    {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1268,7 +1377,7 @@ const fetchActivitiesNearby = async ({
       },
       body: JSON.stringify({
         includedTypes: typesToSearch,
-        maxResultCount: 20,
+        maxResultCount: 10,
         rankPreference: 'POPULARITY',
         locationRestriction: {
           circle: {
@@ -1280,14 +1389,8 @@ const fetchActivitiesNearby = async ({
           },
         },
       }),
-    }),
-    fetchTicketmasterEvents({
-      latitude,
-      longitude,
-      radiusMiles: distanceMiles,
-      dateTime,
-    }),
-  ])
+    },
+  )
 
   if (!res.ok) {
     const errorBody = await res.text()
@@ -1297,21 +1400,18 @@ const fetchActivitiesNearby = async ({
   }
 
   const placesData = (await res.json()) as GoogleSearchTextResponse
-  const places: NearbyPlace[] = placesData.places ?? []
+  const places = (placesData.places ?? []) as NearbyPlace[]
   logPlacesTiming({
     label: 'activity nearby search',
     startedAt: searchStartedAt,
     metadata: {
       resultCount: places.length,
-      ticketmasterCount: ticketmasterPlaces.length,
     },
   })
 
   const nonFoodPlaces = filterFoodPlacesFromActivities(places)
 
   const validDateTimePlaces = filterPlacesByDateTime(nonFoodPlaces, dateTime)
-
-  if (validDateTimePlaces.length === 0) return [] as NearbyPlacesResponse
 
   const priceFilteredPlaces = filterPlacesByPriceLevel(
     validDateTimePlaces,
@@ -1320,12 +1420,28 @@ const fetchActivitiesNearby = async ({
 
   const ratingFilteredPlaces = filterPlacesByRating(priceFilteredPlaces)
 
+  logPlacesTiming({
+    label: 'activity nearby filters',
+    startedAt: searchStartedAt,
+    metadata: {
+      nonFoodCount: nonFoodPlaces.length,
+      validDateTimeCount: validDateTimePlaces.length,
+      priceFilteredCount: priceFilteredPlaces.length,
+      ratingFilteredCount: ratingFilteredPlaces.length,
+    },
+  })
+
+  const prescoredPlaces = preScoreAndSortPlaces(
+    ratingFilteredPlaces,
+    priceLevel,
+  )
+
   // Enrich a bounded finalist set with full Place Details for better AI
   // context. Remaining candidates are returned with lean search data.
-  const detailsLimit = getDetailsEnrichmentLimit(searchState)
+  const detailsLimit = 3 // Limit to top 3 candidates per branch for cost savings
   const detailsStartedAt = Date.now()
   const enrichedPlaces = await enrichPlacesWithDetails(
-    ratingFilteredPlaces,
+    prescoredPlaces,
     detailsLimit,
   )
   logPlacesTiming({
@@ -1344,10 +1460,141 @@ const fetchActivitiesNearby = async ({
     searchState,
   })
 
+  if (enrichedPlaces.length === 0) {
+    return [] as NearbyPlacesResponse
+  }
+
   const refinedPlaces = await refinePlacesWithAI({
-    places: [...enrichedPlaces, ...ticketmasterPlaces],
+    places: enrichedPlaces,
     search: browseGroup?.label ?? 'nearby date activities',
     settings,
+  })
+
+  logPlacesTiming({
+    label: 'activity final results',
+    startedAt: searchStartedAt,
+    metadata: {
+      googleCount: enrichedPlaces.length,
+      finalCount: refinedPlaces.length,
+    },
+  })
+
+  return refinedPlaces as NearbyPlacesResponse
+}
+
+const fetchDateVibesNearby = async ({
+  latitude,
+  longitude,
+  dateTime,
+  priceLevel,
+  distanceMiles,
+  searchState,
+}: {
+  latitude: number
+  longitude: number
+  dateTime: DateTimeOption
+  priceLevel?: z.infer<typeof priceLevelArraySchema>
+  distanceMiles: string
+  searchState: SearchState
+}) => {
+  const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
+  const miles = Number(distanceMiles)
+  const radiusMeters =
+    Number.isFinite(miles) && miles > 0
+      ? Math.min(
+          Math.round(miles * MILES_TO_METERS),
+          MAX_NEARBY_SEARCH_RADIUS_METERS,
+        )
+      : 8047
+  const searchStartedAt = Date.now()
+
+  const res = await fetch(
+    `https://places.googleapis.com/v1/places:searchNearby`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': GOOGLE_SEARCH_FIELD_MASK,
+      },
+      body: JSON.stringify({
+        includedTypes: DATE_VIBE_PLACE_TYPES,
+        excludedPrimaryTypes: DATE_VIBE_EXCLUDED_PRIMARY_TYPES,
+        maxResultCount: 10,
+        rankPreference: 'POPULARITY',
+        locationRestriction: {
+          circle: {
+            center: {
+              latitude,
+              longitude,
+            },
+            radius: radiusMeters,
+          },
+        },
+      }),
+    },
+  )
+
+  if (!res.ok) {
+    const errorBody = await res.text()
+    throw new Error(
+      `Google Places Date & Vibes search failed (${res.status}): ${errorBody}`,
+    )
+  }
+
+  const placesData = (await res.json()) as GoogleSearchTextResponse
+  const places = (placesData.places ?? []) as NearbyPlace[]
+  logPlacesTiming({
+    label: 'date vibes nearby search',
+    startedAt: searchStartedAt,
+    metadata: { resultCount: places.length },
+  })
+
+  const validDateTimePlaces = filterPlacesByDateTime(places, dateTime)
+  const priceFilteredPlaces = filterPlacesByPriceLevel(
+    validDateTimePlaces,
+    priceLevel,
+  )
+  const ratingFilteredPlaces = filterPlacesByRating(priceFilteredPlaces)
+  const prescoredPlaces = preScoreAndSortPlaces(
+    ratingFilteredPlaces,
+    priceLevel,
+  )
+
+  const detailsLimit = 3
+  const detailsStartedAt = Date.now()
+  const enrichedPlaces = await enrichPlacesWithDetails(
+    prescoredPlaces,
+    detailsLimit,
+  )
+  logPlacesTiming({
+    label: 'date vibes details enrichment',
+    startedAt: detailsStartedAt,
+    metadata: {
+      candidateCount: ratingFilteredPlaces.length,
+      enrichmentLimit: detailsLimit,
+      enrichedCount: Math.min(ratingFilteredPlaces.length, detailsLimit),
+    },
+  })
+
+  const settings = buildPreferenceSettingsForQuery({
+    queryKind: 'date_vibe',
+    searchState,
+  })
+
+  const refinedPlaces = await refinePlacesWithAI({
+    places: enrichedPlaces,
+    search: 'Date & Vibes: drinks, dessert, scenic spots, and art',
+    settings,
+  })
+
+  logPlacesTiming({
+    label: 'date vibes final results',
+    startedAt: searchStartedAt,
+    metadata: {
+      googleCount: enrichedPlaces.length,
+      finalCount: refinedPlaces.length,
+    },
   })
 
   return refinedPlaces as NearbyPlacesResponse
@@ -1358,51 +1605,71 @@ const enrichPlacesWithDetails = async (
   places: NearbyPlace[],
   maxToEnrich: number = MAX_GOOGLE_PLACES_RESULTS,
 ): Promise<NearbyPlace[]> => {
-  const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
-  const placesToEnrich = places.slice(0, maxToEnrich)
+  try {
+    const apiKey: string = process.env.GOOGLE_PLACES_API_KEY ?? ''
+    const placesToEnrich = places.slice(0, maxToEnrich)
 
-  const enrichedPlaces = await Promise.all(
-    placesToEnrich.map(async (place) => {
-      const placeId = place.id
-      if (!placeId) return place
+    const enrichedPlaces = await Promise.all(
+      placesToEnrich.map(async (place) => {
+        const placeId = place.id
+        if (!placeId) return place
 
-      const cachedDetails = placeDetailsCache.get(placeId)
-      if (cachedDetails && cachedDetails.expiresAt > Date.now()) {
-        return { ...place, ...cachedDetails.place }
-      }
-
-      try {
-        const res = await fetch(
-          `https://places.googleapis.com/v1/places/${placeId}?` +
-            `fields=${encodeURIComponent(GOOGLE_PLACE_DETAILS_FIELD_MASK)}`,
-          {
-            method: 'GET',
-            headers: {
-              'X-Goog-Api-Key': apiKey,
-            },
-          },
-        )
-
-        if (!res.ok) {
-          return place
+        const cachedDetails = placeDetailsCache.get(placeId)
+        if (cachedDetails && cachedDetails.expiresAt > Date.now()) {
+          return { ...place, ...cachedDetails.place }
         }
 
-        const detailedPlace = (await res.json()) as NearbyPlace
-        placeDetailsCache.set(placeId, {
-          place: detailedPlace,
-          expiresAt: Date.now() + PLACE_DETAILS_CACHE_TTL_MS,
-        })
-        return { ...place, ...detailedPlace }
-      } catch (error) {
-        return place
-      }
-    }),
-  )
+        try {
+          const res = await fetch(
+            `https://places.googleapis.com/v1/places/${placeId}?` +
+              `fields=${encodeURIComponent(GOOGLE_PLACE_DETAILS_FIELD_MASK)}`,
+            {
+              method: 'GET',
+              headers: {
+                'X-Goog-Api-Key': apiKey,
+              },
+            },
+          )
 
-  // Merge enriched data with remaining places (not enriched)
-  const finalEnriched = [...enrichedPlaces, ...places.slice(maxToEnrich)]
+          if (!res.ok) {
+            return place
+          }
 
-  return finalEnriched
+          const detailedPlace = (await res.json()) as NearbyPlace
+
+          // Trim photos to max 1 to reduce payload size and protect against unexpected media costs
+          if (detailedPlace.photos && detailedPlace.photos.length > 1) {
+            detailedPlace.photos = detailedPlace.photos.slice(0, 1)
+          }
+
+          const mergedPlace = { ...place, ...detailedPlace }
+
+          placeDetailsCache.set(placeId, {
+            place: mergedPlace,
+            expiresAt: Date.now() + PLACE_DETAILS_CACHE_TTL_MS,
+          })
+          return mergedPlace
+        } catch (error) {
+          logPlacesError({
+            label: 'place details enrichment failed for candidate',
+            error,
+          })
+          return place
+        }
+      }),
+    )
+
+    // Merge enriched data with remaining places (not enriched)
+    const finalEnriched = [...enrichedPlaces, ...places.slice(maxToEnrich)]
+
+    return finalEnriched
+  } catch (error) {
+    logPlacesError({
+      label: 'place details enrichment failed',
+      error,
+    })
+    return places
+  }
 }
 
 export const getPhotoMedia = createServerFn({ method: 'GET' })
@@ -1527,6 +1794,79 @@ export const searchCities = createServerFn({ method: 'GET' })
     return dedupedCities
   })
 
+export const resolveAreaLabel = createServerFn({ method: 'GET' })
+  .inputValidator((data: { latitude: number; longitude: number }) =>
+    z
+      .object({
+        latitude: z.number().min(-90).max(90),
+        longitude: z.number().min(-180).max(180),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const queryParams = new URLSearchParams({
+      lat: String(data.latitude),
+      lon: String(data.longitude),
+      lang: 'en',
+    })
+
+    const response = await fetch(
+      `https://photon.komoot.io/reverse?${queryParams.toString()}`,
+      {
+        headers: {
+          Accept: 'application/json',
+        },
+      },
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Area lookup failed: ${response.status} ${errorText}`)
+    }
+
+    const photonResponse = (await response.json()) as {
+      features?: Array<{
+        properties?: {
+          name?: string
+          district?: string
+          city?: string
+          locality?: string
+          county?: string
+          state?: string
+          country?: string
+          countrycode?: string
+        }
+      }>
+    }
+
+    const properties = photonResponse.features?.[0]?.properties
+    if (!properties) return null
+
+    const placeName =
+      properties.district ??
+      properties.locality ??
+      properties.city ??
+      properties.name ??
+      properties.county
+    const regionName =
+      properties.city === placeName
+        ? properties.state
+        : (properties.city ?? properties.state)
+    const countryName =
+      properties.country ?? properties.countrycode?.toUpperCase()
+
+    const label = [placeName, regionName, countryName]
+      .filter(
+        (value, index, values): value is string =>
+          typeof value === 'string' &&
+          value.trim().length > 0 &&
+          values.indexOf(value) === index,
+      )
+      .join(', ')
+
+    return label.length > 0 ? label : null
+  })
+
 export const getPlaces = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
@@ -1568,10 +1908,47 @@ export const getPlaces = createServerFn({ method: 'POST' })
         startingArea: undefined,
         duration: undefined,
       },
-      includeTicketmaster: true,
     })
     return places
   })
+
+const fetchAndRankEvents = async ({
+  latitude,
+  longitude,
+  distanceMiles,
+  dateTime,
+  searchState,
+}: {
+  latitude: number
+  longitude: number
+  distanceMiles: string
+  dateTime: DateTimeOption
+  searchState: SearchState
+}) => {
+  const ticketmasterPlaces = await fetchTicketmasterEvents({
+    latitude,
+    longitude,
+    radiusMiles: distanceMiles,
+    dateTime,
+  })
+
+  if (ticketmasterPlaces.length === 0) {
+    return [] as NearbyPlacesResponse
+  }
+
+  const settings = buildPreferenceSettingsForQuery({
+    queryKind: 'activity',
+    searchState,
+  })
+
+  const refinedEvents = await refinePlacesWithAI({
+    places: ticketmasterPlaces,
+    search: 'live events, concerts, shows, or games',
+    settings,
+  })
+
+  return refinedEvents as NearbyPlacesResponse
+}
 
 export const getDatePlan = createServerFn({ method: 'POST' })
   .inputValidator(
@@ -1585,6 +1962,7 @@ export const getDatePlan = createServerFn({ method: 'POST' })
         .parse(data),
   )
   .handler(async ({ data }) => {
+    const requestStartedAt = Date.now()
     const dateTime = dateTimeSchema
       .catch('Now')
       .parse(data.searchState.dateTime)
@@ -1605,58 +1983,170 @@ export const getDatePlan = createServerFn({ method: 'POST' })
       value: data.searchState.food,
     })
 
+    const parsedPlanTypes =
+      data.searchState.planTypes?.split(',').filter(Boolean) || []
+
+    const isQuickMode = data.searchState.mode === 'quick'
+
+    // Determine what to fetch based on mode and planTypes
+    const shouldFetchRestaurants =
+      isQuickMode && parsedPlanTypes.length > 0
+        ? parsedPlanTypes.includes('restaurant')
+        : restaurantQuery.length > 0 || isQuickMode
+
+    const shouldFetchDateVibes =
+      isQuickMode && parsedPlanTypes.length > 0
+        ? parsedPlanTypes.includes('date_vibe')
+        : false
+
+    const shouldFetchActivities =
+      isQuickMode && parsedPlanTypes.length > 0
+        ? parsedPlanTypes.includes('activity')
+        : true // Default behavior for guided mode
+
     // Determine activity search mode
     const activitySearchMode = data.searchState.activitySearchMode ?? 'browse'
 
-    const [restaurants, activities] = await Promise.all([
-      restaurantQuery.length > 0
-        ? fetchPlacesForQuery({
-            latitude: data.latitude,
-            longitude: data.longitude,
-            search: restaurantQuery,
-            queryKind: 'restaurant',
-            dateTime,
-            priceLevel,
-            distanceMiles: parsedDistance,
-            searchState: data.searchState,
-            includeTicketmaster: false,
-          })
-        : Promise.resolve([] as NearbyPlacesResponse),
-      activitySearchMode === 'browse'
-        ? // Use Nearby Search to discover date ideas
-          fetchActivitiesNearby({
-            latitude: data.latitude,
-            longitude: data.longitude,
-            dateTime,
-            priceLevel,
-            distanceMiles: parsedDistance,
-            searchState: data.searchState,
-          })
-        : // Use text search for specific activity types
-          (() => {
-            const activityQuery = formatGoogleQueryTextField({
-              promptType: 'activityTypes',
-              value: data.searchState.activityTypes,
+    // Determine if we should fetch Ticketmaster events
+    const shouldFetchEvents =
+      isQuickMode && parsedPlanTypes.length > 0
+        ? parsedPlanTypes.includes('event')
+        : (activitySearchMode === 'browse' &&
+            (data.searchState.activityBrowseCategory === 'nightlife_music' ||
+              data.searchState.activityBrowseCategory === 'arts_culture')) ||
+          (activitySearchMode === 'specific' &&
+            !!data.searchState.activityTypes &&
+            /concert|show|sport|game|comedy|live|music|theat/i.test(
+              data.searchState.activityTypes.toLowerCase(),
+            ))
+
+    const [restaurantsResult, dateVibesResult, activitiesResult, eventsResult] =
+      await Promise.allSettled([
+        shouldFetchRestaurants
+          ? fetchPlacesForQuery({
+              latitude: data.latitude,
+              longitude: data.longitude,
+              search: restaurantQuery,
+              queryKind: 'restaurant',
+              dateTime,
+              priceLevel,
+              distanceMiles: parsedDistance,
+              searchState: data.searchState,
             })
-            return activityQuery.length > 0
-              ? fetchPlacesForQuery({
-                  latitude: data.latitude,
-                  longitude: data.longitude,
-                  search: activityQuery,
-                  queryKind: 'activity',
-                  dateTime,
-                  priceLevel,
-                  distanceMiles: parsedDistance,
-                  searchState: data.searchState,
-                  includeTicketmaster: true,
+          : Promise.resolve([] as NearbyPlacesResponse),
+        shouldFetchDateVibes
+          ? fetchDateVibesNearby({
+              latitude: data.latitude,
+              longitude: data.longitude,
+              dateTime,
+              priceLevel,
+              distanceMiles: parsedDistance,
+              searchState: data.searchState,
+            })
+          : Promise.resolve([] as NearbyPlacesResponse),
+        shouldFetchActivities
+          ? activitySearchMode === 'browse'
+            ? // Use Nearby Search to discover date ideas
+              fetchActivitiesNearby({
+                latitude: data.latitude,
+                longitude: data.longitude,
+                dateTime,
+                priceLevel,
+                distanceMiles: parsedDistance,
+                searchState: data.searchState,
+              })
+            : // Use text search for specific activity types
+              (() => {
+                const activityQuery = formatGoogleQueryTextField({
+                  promptType: 'activityTypes',
+                  value: data.searchState.activityTypes,
                 })
-              : Promise.resolve([] as NearbyPlacesResponse)
-          })(),
-    ])
+                return activityQuery.length > 0
+                  ? fetchPlacesForQuery({
+                      latitude: data.latitude,
+                      longitude: data.longitude,
+                      search: activityQuery,
+                      queryKind: 'activity',
+                      dateTime,
+                      priceLevel,
+                      distanceMiles: parsedDistance,
+                      searchState: data.searchState,
+                    })
+                  : Promise.resolve([] as NearbyPlacesResponse)
+              })()
+          : Promise.resolve([] as NearbyPlacesResponse),
+        shouldFetchEvents
+          ? fetchAndRankEvents({
+              latitude: data.latitude,
+              longitude: data.longitude,
+              distanceMiles: parsedDistance,
+              dateTime,
+              searchState: data.searchState,
+            })
+          : Promise.resolve([] as NearbyPlacesResponse),
+      ])
+
+    if (restaurantsResult.status === 'rejected') {
+      logPlacesError({
+        label: 'restaurant branch failed',
+        error: restaurantsResult.reason,
+      })
+    }
+
+    if (activitiesResult.status === 'rejected') {
+      logPlacesError({
+        label: 'activity branch failed',
+        error: activitiesResult.reason,
+      })
+    }
+
+    if (dateVibesResult.status === 'rejected') {
+      logPlacesError({
+        label: 'date vibes branch failed',
+        error: dateVibesResult.reason,
+      })
+    }
+
+    if (eventsResult.status === 'rejected') {
+      logPlacesError({
+        label: 'events branch failed',
+        error: eventsResult.reason,
+      })
+    }
+
+    const restaurants =
+      restaurantsResult.status === 'fulfilled'
+        ? restaurantsResult.value
+        : ([] as NearbyPlacesResponse)
+    const dateVibes =
+      dateVibesResult.status === 'fulfilled'
+        ? dateVibesResult.value
+        : ([] as NearbyPlacesResponse)
+    const activities =
+      activitiesResult.status === 'fulfilled'
+        ? activitiesResult.value
+        : ([] as NearbyPlacesResponse)
+    const events =
+      eventsResult.status === 'fulfilled'
+        ? eventsResult.value
+        : ([] as NearbyPlacesResponse)
+
+    logPlacesTiming({
+      label: 'date plan final response',
+      startedAt: requestStartedAt,
+      metadata: {
+        restaurantCount: restaurants.length,
+        dateVibesCount: dateVibes.length,
+        activityCount: activities.length,
+        eventCount: events.length,
+      },
+    })
 
     const response = {
       restaurants,
+      dateVibes,
       activities,
+      events,
     } as DatePlanResponse
 
     return response

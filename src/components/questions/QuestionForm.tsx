@@ -18,6 +18,7 @@ export default function QuestionForm({
   onToggleCsvFieldValue,
   onSubmit,
   isSubmitting,
+  isSubmitArmed,
   onLocationErrorChange,
   onValidationErrorChange,
 }: {
@@ -40,6 +41,7 @@ export default function QuestionForm({
   ) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   isSubmitting: boolean
+  isSubmitArmed: boolean
   onLocationErrorChange: (message: string | null) => void
   onValidationErrorChange: (message: string | null) => void
 }) {
@@ -146,6 +148,7 @@ export default function QuestionForm({
         isFirstStep={isFirstStep}
         getFieldValue={getFieldValue}
         isSubmitting={isSubmitting}
+        isSubmitArmed={isSubmitArmed}
         onValidationErrorChange={onValidationErrorChange}
       />
     </form>

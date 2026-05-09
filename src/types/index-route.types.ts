@@ -10,6 +10,7 @@ export type GoogleDisplayName = NonNullable<GoogleNearbyPlace['displayName']>
 export type PlaceReasoning = {
   ai: {
     reason: string
+    summary?: string
     score: number | null
     rank: number | null
   }
@@ -33,7 +34,10 @@ export type DatePlanResponse = ValidateSerializableInput<
   Register,
   {
     restaurants: NearbyPlace[]
+    dateVibes: NearbyPlace[]
     activities: NearbyPlace[]
+    events: NearbyPlace[]
+    searchState?: SearchState
   }
 >
 
@@ -47,6 +51,8 @@ export type DateTimeOption =
 
 export type ActivitySearchMode = 'browse' | 'specific'
 
+export type PlanType = 'restaurant' | 'date_vibe' | 'activity' | 'event'
+
 export type ActivityIdeaCount = '3' | '5' | '8' | '10'
 
 export type ActivityBrowseCategory =
@@ -59,6 +65,7 @@ export type ActivityBrowseCategory =
 
 export type AnswerKey =
   | 'location'
+  | 'planTypes'
   | 'dateTime'
   | 'startingArea'
   | 'duration'
@@ -83,9 +90,11 @@ export type QuestionSection = {
 
 export type SearchState = {
   step: number
+  mode?: 'guided' | 'quick'
   latitude?: number
   longitude?: number
   locationSource?: 'ip' | 'current' | 'pin' | 'typed'
+  locationLabel?: string
 } & Partial<Record<AnswerKey, string>>
 
 export type QuestionInputsProps = {
