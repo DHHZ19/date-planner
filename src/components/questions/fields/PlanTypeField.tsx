@@ -1,5 +1,5 @@
-import { z } from 'zod'
-import { planTypeSchema } from '#/schemas/index.schema'
+import type { z } from 'zod'
+import type { planTypeSchema } from '#/schemas/index.schema'
 
 export type PlanType = z.infer<typeof planTypeSchema>
 

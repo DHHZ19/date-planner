@@ -3,9 +3,11 @@ import type {
   GoogleDisplayName,
   NearbyPlace,
 } from '#/types/index-route.types'
+import { getOrSetApiCache } from './api-cache'
 
 const TICKETMASTER_EVENT_SEARCH_URL =
   'https://app.ticketmaster.com/discovery/v2/events.json'
+const TICKETMASTER_EVENTS_CACHE_TTL_SECONDS = 2 * 60 * 60
 
 type TicketmasterEvent = {
   id?: string
@@ -363,15 +365,40 @@ export const fetchTicketmasterEvents = async ({
     params.set('localStartEndDateTime', `${localStart},${localEnd}`)
   }
 
-  const res = await fetch(
-    `${TICKETMASTER_EVENT_SEARCH_URL}?${params.toString()}`,
+  const cacheParams = Object.fromEntries(
+    Array.from(params.entries()).filter(([key]) => key !== 'apikey'),
   )
-  if (!res.ok) {
-    return []
-  }
 
-  const data = (await res.json()) as {
-    _embedded?: { events?: TicketmasterEvent[] }
+  let data: { _embedded?: { events?: TicketmasterEvent[] } }
+  try {
+    data = await getOrSetApiCache<{
+      _embedded?: { events?: TicketmasterEvent[] }
+    }>({
+      namespace: 'ticketmaster:events',
+      keyParts: {
+        version: 1,
+        endpoint: 'ticketmaster-events',
+        params: cacheParams,
+      },
+      ttlSeconds: TICKETMASTER_EVENTS_CACHE_TTL_SECONDS,
+      fetchFresh: async () => {
+        const res = await fetch(
+          `${TICKETMASTER_EVENT_SEARCH_URL}?${params.toString()}`,
+        )
+        if (!res.ok) {
+          throw new Error(`Ticketmaster events failed (${res.status})`)
+        }
+
+        return (await res.json()) as {
+          _embedded?: { events?: TicketmasterEvent[] }
+        }
+      },
+    })
+  } catch (error) {
+    console.warn('[ticketmaster] Event search failed', {
+      message: error instanceof Error ? error.message : String(error),
+    })
+    return []
   }
 
   return (data._embedded?.events ?? [])

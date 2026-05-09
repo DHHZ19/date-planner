@@ -24,6 +24,7 @@ import {
 } from '#/constants/activity-type-groups'
 import OpenAI from 'openai'
 
+import { getOrSetApiCache } from './api-cache'
 import { fetchTicketmasterEvents } from './ticketmaster'
 
 // Lean field mask for Nearby Search (New) and Text Search (New). Search is
@@ -76,15 +77,8 @@ const MILES_TO_METERS = 1609.344
 const MAX_NEARBY_SEARCH_RADIUS_METERS = 50_000
 const MAX_GOOGLE_PLACES_RESULTS = 10
 const MAX_CITY_AUTOCOMPLETE_RESULTS = 6
-const PLACE_DETAILS_CACHE_TTL_MS = 1000 * 60 * 15
-
-const placeDetailsCache = new Map<
-  string,
-  {
-    place: NearbyPlace
-    expiresAt: number
-  }
->()
+const GOOGLE_SEARCH_CACHE_TTL_SECONDS = 24 * 60 * 60
+const GOOGLE_PLACE_DETAILS_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 
 type QueryKind = 'restaurant' | 'activity' | 'date_vibe'
 
@@ -1230,43 +1224,57 @@ const fetchPlacesForQuery = async ({
   const settings = buildPreferenceSettingsForQuery({ queryKind, searchState })
   const textQuery = buildTextQuery(search)
   const searchStartedAt = Date.now()
-
-  const res = await fetch(
-    `https://places.googleapis.com/v1/places:searchText`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': GOOGLE_SEARCH_FIELD_MASK,
-      },
-      body: JSON.stringify({
-        textQuery,
-        maxResultCount: MAX_GOOGLE_PLACES_RESULTS,
-        locationRestriction: {
-          rectangle: {
-            low: {
-              latitude: latitude - latDelta,
-              longitude: longitude - lngDelta,
-            },
-            high: {
-              latitude: latitude + latDelta,
-              longitude: longitude + lngDelta,
-            },
-          },
+  const searchBody = {
+    textQuery,
+    maxResultCount: MAX_GOOGLE_PLACES_RESULTS,
+    locationRestriction: {
+      rectangle: {
+        low: {
+          latitude: latitude - latDelta,
+          longitude: longitude - lngDelta,
         },
-      }),
+        high: {
+          latitude: latitude + latDelta,
+          longitude: longitude + lngDelta,
+        },
+      },
     },
-  )
-
-  if (!res.ok) {
-    const errorBody = await res.text()
-    throw new Error(
-      `Google Places request failed (${res.status}): ${errorBody}`,
-    )
   }
 
-  const placesData = (await res.json()) as GoogleSearchTextResponse
+  const placesData = await getOrSetApiCache<GoogleSearchTextResponse>({
+    namespace: 'google:search-text',
+    keyParts: {
+      version: 1,
+      endpoint: 'places:searchText',
+      fieldMask: GOOGLE_SEARCH_FIELD_MASK,
+      body: searchBody,
+    },
+    ttlSeconds: GOOGLE_SEARCH_CACHE_TTL_SECONDS,
+    fetchFresh: async () => {
+      const res = await fetch(
+        `https://places.googleapis.com/v1/places:searchText`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey,
+            'X-Goog-FieldMask': GOOGLE_SEARCH_FIELD_MASK,
+          },
+          body: JSON.stringify(searchBody),
+        },
+      )
+
+      if (!res.ok) {
+        const errorBody = await res.text()
+        throw new Error(
+          `Google Places request failed (${res.status}): ${errorBody}`,
+        )
+      }
+
+      return (await res.json()) as GoogleSearchTextResponse
+    },
+  })
+
   const places = (placesData.places ?? []) as NearbyPlace[]
   logPlacesTiming({
     label: `${queryKind} text search`,
@@ -1365,41 +1373,55 @@ const fetchActivitiesNearby = async ({
   // We'll use all our date activity types (should be well under 50)
   const typesToSearch = placeTypes.slice(0, 50)
   const searchStartedAt = Date.now()
-
-  const res = await fetch(
-    `https://places.googleapis.com/v1/places:searchNearby`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': GOOGLE_SEARCH_FIELD_MASK,
-      },
-      body: JSON.stringify({
-        includedTypes: typesToSearch,
-        maxResultCount: 10,
-        rankPreference: 'POPULARITY',
-        locationRestriction: {
-          circle: {
-            center: {
-              latitude,
-              longitude,
-            },
-            radius: radiusMeters,
-          },
+  const searchBody = {
+    includedTypes: typesToSearch,
+    maxResultCount: 10,
+    rankPreference: 'POPULARITY',
+    locationRestriction: {
+      circle: {
+        center: {
+          latitude,
+          longitude,
         },
-      }),
+        radius: radiusMeters,
+      },
     },
-  )
-
-  if (!res.ok) {
-    const errorBody = await res.text()
-    throw new Error(
-      `Google Places Nearby Search failed (${res.status}): ${errorBody}`,
-    )
   }
 
-  const placesData = (await res.json()) as GoogleSearchTextResponse
+  const placesData = await getOrSetApiCache<GoogleSearchTextResponse>({
+    namespace: 'google:search-nearby',
+    keyParts: {
+      version: 1,
+      endpoint: 'places:searchNearby',
+      fieldMask: GOOGLE_SEARCH_FIELD_MASK,
+      body: searchBody,
+    },
+    ttlSeconds: GOOGLE_SEARCH_CACHE_TTL_SECONDS,
+    fetchFresh: async () => {
+      const res = await fetch(
+        `https://places.googleapis.com/v1/places:searchNearby`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey,
+            'X-Goog-FieldMask': GOOGLE_SEARCH_FIELD_MASK,
+          },
+          body: JSON.stringify(searchBody),
+        },
+      )
+
+      if (!res.ok) {
+        const errorBody = await res.text()
+        throw new Error(
+          `Google Places Nearby Search failed (${res.status}): ${errorBody}`,
+        )
+      }
+
+      return (await res.json()) as GoogleSearchTextResponse
+    },
+  })
+
   const places = (placesData.places ?? []) as NearbyPlace[]
   logPlacesTiming({
     label: 'activity nearby search',
@@ -1507,42 +1529,56 @@ const fetchDateVibesNearby = async ({
         )
       : 8047
   const searchStartedAt = Date.now()
-
-  const res = await fetch(
-    `https://places.googleapis.com/v1/places:searchNearby`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': GOOGLE_SEARCH_FIELD_MASK,
-      },
-      body: JSON.stringify({
-        includedTypes: DATE_VIBE_PLACE_TYPES,
-        excludedPrimaryTypes: DATE_VIBE_EXCLUDED_PRIMARY_TYPES,
-        maxResultCount: 10,
-        rankPreference: 'POPULARITY',
-        locationRestriction: {
-          circle: {
-            center: {
-              latitude,
-              longitude,
-            },
-            radius: radiusMeters,
-          },
+  const searchBody = {
+    includedTypes: DATE_VIBE_PLACE_TYPES,
+    excludedPrimaryTypes: DATE_VIBE_EXCLUDED_PRIMARY_TYPES,
+    maxResultCount: 10,
+    rankPreference: 'POPULARITY',
+    locationRestriction: {
+      circle: {
+        center: {
+          latitude,
+          longitude,
         },
-      }),
+        radius: radiusMeters,
+      },
     },
-  )
-
-  if (!res.ok) {
-    const errorBody = await res.text()
-    throw new Error(
-      `Google Places Date & Vibes search failed (${res.status}): ${errorBody}`,
-    )
   }
 
-  const placesData = (await res.json()) as GoogleSearchTextResponse
+  const placesData = await getOrSetApiCache<GoogleSearchTextResponse>({
+    namespace: 'google:search-nearby',
+    keyParts: {
+      version: 1,
+      endpoint: 'places:searchNearby',
+      fieldMask: GOOGLE_SEARCH_FIELD_MASK,
+      body: searchBody,
+    },
+    ttlSeconds: GOOGLE_SEARCH_CACHE_TTL_SECONDS,
+    fetchFresh: async () => {
+      const res = await fetch(
+        `https://places.googleapis.com/v1/places:searchNearby`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey,
+            'X-Goog-FieldMask': GOOGLE_SEARCH_FIELD_MASK,
+          },
+          body: JSON.stringify(searchBody),
+        },
+      )
+
+      if (!res.ok) {
+        const errorBody = await res.text()
+        throw new Error(
+          `Google Places Date & Vibes search failed (${res.status}): ${errorBody}`,
+        )
+      }
+
+      return (await res.json()) as GoogleSearchTextResponse
+    },
+  })
+
   const places = (placesData.places ?? []) as NearbyPlace[]
   logPlacesTiming({
     label: 'date vibes nearby search',
@@ -1614,41 +1650,50 @@ const enrichPlacesWithDetails = async (
         const placeId = place.id
         if (!placeId) return place
 
-        const cachedDetails = placeDetailsCache.get(placeId)
-        if (cachedDetails && cachedDetails.expiresAt > Date.now()) {
-          return { ...place, ...cachedDetails.place }
-        }
-
         try {
-          const res = await fetch(
-            `https://places.googleapis.com/v1/places/${placeId}?` +
-              `fields=${encodeURIComponent(GOOGLE_PLACE_DETAILS_FIELD_MASK)}`,
-            {
-              method: 'GET',
-              headers: {
-                'X-Goog-Api-Key': apiKey,
-              },
+          const detailedPlace = await getOrSetApiCache<NearbyPlace>({
+            namespace: 'google:place-details',
+            keyParts: {
+              version: 1,
+              endpoint: 'place-details',
+              placeId,
+              fieldMask: GOOGLE_PLACE_DETAILS_FIELD_MASK,
             },
-          )
+            ttlSeconds: GOOGLE_PLACE_DETAILS_CACHE_TTL_SECONDS,
+            fetchFresh: async () => {
+              const res = await fetch(
+                `https://places.googleapis.com/v1/places/${placeId}?` +
+                  `fields=${encodeURIComponent(GOOGLE_PLACE_DETAILS_FIELD_MASK)}`,
+                {
+                  method: 'GET',
+                  headers: {
+                    'X-Goog-Api-Key': apiKey,
+                  },
+                },
+              )
 
-          if (!res.ok) {
-            return place
-          }
+              if (!res.ok) {
+                throw new Error(`Google Place Details failed (${res.status})`)
+              }
 
-          const detailedPlace = (await res.json()) as NearbyPlace
+              const providerPlaceDetails = (await res.json()) as NearbyPlace
 
-          // Trim photos to max 1 to reduce payload size and protect against unexpected media costs
-          if (detailedPlace.photos && detailedPlace.photos.length > 1) {
-            detailedPlace.photos = detailedPlace.photos.slice(0, 1)
-          }
+              // Trim photos to max 1 to reduce payload size and protect against unexpected media costs
+              if (
+                providerPlaceDetails.photos &&
+                providerPlaceDetails.photos.length > 1
+              ) {
+                providerPlaceDetails.photos = providerPlaceDetails.photos.slice(
+                  0,
+                  1,
+                )
+              }
 
-          const mergedPlace = { ...place, ...detailedPlace }
-
-          placeDetailsCache.set(placeId, {
-            place: mergedPlace,
-            expiresAt: Date.now() + PLACE_DETAILS_CACHE_TTL_MS,
+              return providerPlaceDetails
+            },
           })
-          return mergedPlace
+
+          return { ...place, ...detailedPlace }
         } catch (error) {
           logPlacesError({
             label: 'place details enrichment failed for candidate',

@@ -63,12 +63,12 @@ export function useDatePlanSubmission() {
       setSubmitError(null)
 
       const resolvedAreaLabel = shouldResolveAreaLabel(search)
-        ? ((await resolveAreaLabel({
+        ? await resolveAreaLabel({
             data: {
               latitude: selectedPosition.latitude,
               longitude: selectedPosition.longitude,
             },
-          }).catch(() => null)) as string | null)
+          }).catch(() => null)
         : null
       const searchWithAreaLabel = {
         ...search,

@@ -9,6 +9,84 @@ npm install
 npm run dev
 ```
 
+Agents must not run `npm run dev`; the local dev server is managed by the user.
+
+# Docker And Redis
+
+Redis is used as a server-side cache for external provider API responses. The browser never connects to Redis and should never receive Redis credentials.
+
+Start the hot-reload development app and Redis:
+
+```bash
+docker compose up --build
+```
+
+Run it detached:
+
+```bash
+docker compose up -d --build
+```
+
+Start Redis only for the normal non-Docker app workflow:
+
+```bash
+docker compose up -d redis
+```
+
+Agent-safe Redis command that prevents Docker Compose from reading `.env`:
+
+```bash
+COMPOSE_DISABLE_ENV_FILE=1 docker compose up -d redis
+```
+
+The non-Docker app should use:
+
+```bash
+REDIS_URL=redis://localhost:6379
+```
+
+Run the production-like Docker app profile:
+
+```bash
+docker compose --profile production up --build app-production
+```
+
+Agents must not run default `docker compose up` unless explicitly requested because it starts a dev server. Target `app-production` explicitly when using the production profile so the default hot-reload app service is not started on the same port. The base Compose file does not reference `.env`; provide provider credentials through your deployment platform, exported shell environment, or a private uncommitted `compose.override.yml` that you manage yourself.
+
+Provider credentials needed by the app:
+
+```bash
+GOOGLE_PLACES_API_KEY=...
+TICKETMASTER_API_KEY=...
+OPENAI_API_KEY=...
+```
+
+`GOOGLE_PLACES_API_KEY` is required for Google Places. `TICKETMASTER_API_KEY` enables event results. `OPENAI_API_KEY` enables AI reranking; the app falls back when it is missing.
+
+Flush API cache keys with:
+
+```bash
+npm run cache:flush
+```
+
+Pass a custom prefix if needed:
+
+```bash
+npm run cache:flush -- date-planner:dev
+```
+
+Cache behavior is controlled by:
+
+```bash
+REDIS_URL=redis://localhost:6379
+API_CACHE_ENABLED=false
+API_CACHE_BYPASS=true
+API_CACHE_PREFIX=date-planner:dev
+API_CACHE_DEFAULT_TTL_SECONDS=3600
+```
+
+When `REDIS_URL` is missing, provider calls fall back to live API requests without caching. When `API_CACHE_BYPASS=true`, cache reads are skipped and fresh provider responses are written back to Redis.
+
 # Building For Production
 
 To build this application for production:

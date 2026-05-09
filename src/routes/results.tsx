@@ -121,10 +121,10 @@ function ResultsPage() {
     return null
   }
 
-  const restaurants = datePlan.restaurants ?? []
-  const dateVibes = datePlan.dateVibes ?? []
-  const activities = datePlan.activities ?? []
-  const events = datePlan.events ?? []
+  const restaurants = datePlan.restaurants
+  const dateVibes = datePlan.dateVibes
+  const activities = datePlan.activities
+  const events = datePlan.events
   const suggestionCount =
     restaurants.length + dateVibes.length + activities.length + events.length
 
