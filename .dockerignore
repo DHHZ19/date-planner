@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+.output
+.vinxi
+.tanstack
+.git
+.env
+.DS_Store
+coverage
+npm-debug.log*

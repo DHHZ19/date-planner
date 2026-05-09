@@ -7,12 +7,15 @@
   },
   "scripts": {
     "dev": "op run --env-file .env -- vite dev --port 3000",
+    "dev:docker": "vite dev --host 0.0.0.0 --port 3000",
     "build": "vite build",
     "preview": "vite preview",
+    "start": "node .output/server/index.mjs",
     "test": "vitest run",
     "lint": "eslint src/**/*",
     "format": "prettier --check .",
-    "check": "prettier --write . && eslint --fix"
+    "check": "prettier --write . && eslint --fix",
+    "cache:flush": "node scripts/flush-api-cache.mjs"
   },
   "dependencies": {
     "@googlemaps/places": "^2.4.0",
@@ -28,9 +31,11 @@
     "@types/google.maps": "^3.58.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.545.0",
+    "nitro": "^3.0.260429-beta",
     "openai": "^6.34.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "redis": "^5.12.1",
     "tailwindcss": "^4.1.18",
     "zod": "^4.3.6"
   },

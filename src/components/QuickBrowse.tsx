@@ -9,6 +9,7 @@ import QuickFoodField from '#/components/questions/fields/QuickFoodField'
 import PlanTypeField from '#/components/questions/fields/PlanTypeField'
 import ErrorBanner from '#/components/ErrorBanner'
 import { FOOD_SUGGESTIONS } from '#/constants/food-suggestions'
+import { startSafeViewTransition } from '#/lib/startSafeViewTransition'
 
 const PLAN_TYPE_HELP_ITEMS = [
   {
@@ -118,13 +119,9 @@ export function QuickBrowse() {
       audio.volume = 0.5
       audio.play().catch(() => {})
 
-      if ('startViewTransition' in document) {
-        document.startViewTransition(() => {
-          navigate({ to: '/results', search: (prev) => prev })
-        })
-      } else {
-        navigate({ to: '/results', search: (prev) => prev })
-      }
+      startSafeViewTransition(() =>
+        navigate({ to: '/results', search: (prev) => prev }),
+      )
     }
   }
 

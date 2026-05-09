@@ -5,6 +5,7 @@ import QuestionForm from '#/components/questions/QuestionForm'
 import { PRICE_LEVEL_OPTIONS } from '#/components/questions/question-config'
 import { useDatePlanSubmission } from '#/components/questions/hooks/useDatePlanSubmission'
 import { useQuestionSearchState } from '#/components/questions/hooks/useQuestionSearchState'
+import { startSafeViewTransition } from '#/lib/startSafeViewTransition'
 
 import type { FormEvent } from 'react'
 import type { QuestionSection } from '#/types/index-route.types'
@@ -68,22 +69,14 @@ export const QuestionInputs = ({
         // Ignore autoplay restrictions if any
       })
 
-      if ('startViewTransition' in document) {
-        document.startViewTransition(() => {
-          setShowSuccessOverlay(true)
-        })
-      } else {
+      startSafeViewTransition(() => {
         setShowSuccessOverlay(true)
-      }
+      })
 
       setTimeout(() => {
-        if ('startViewTransition' in document) {
-          document.startViewTransition(() => {
-            navigate({ to: '/results', search: (prev) => prev })
-          })
-        } else {
-          navigate({ to: '/results', search: (prev) => prev })
-        }
+        startSafeViewTransition(() =>
+          navigate({ to: '/results', search: (prev) => prev }),
+        )
       }, 2000)
     }
   }
