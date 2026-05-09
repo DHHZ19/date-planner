@@ -40,6 +40,7 @@ export default function AutocompleteMultiSelectField({
   ariaLabel,
   resetKey,
   onChange,
+  className,
 }: {
   id: string
   name: string
@@ -51,6 +52,7 @@ export default function AutocompleteMultiSelectField({
   ariaLabel: string
   resetKey: number | string
   onChange: (value: string | undefined) => void
+  className?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -233,6 +235,21 @@ export default function AutocompleteMultiSelectField({
       return
     }
 
+    if (event.key === 'Enter') {
+      const target = event.target
+
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLButtonElement
+      ) {
+        event.preventDefault()
+        setKeyboardNavigationActive(true)
+        selectActiveSuggestion()
+      }
+
+      return
+    }
+
     if (!isOpen && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
       event.preventDefault()
       setIsOpen(true)
@@ -274,19 +291,6 @@ export default function AutocompleteMultiSelectField({
       setActiveIndex(totalOptions)
       return
     }
-
-    if (event.key === 'Enter') {
-      const target = event.target
-
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLButtonElement
-      ) {
-        event.preventDefault()
-        setKeyboardNavigationActive(true)
-        selectActiveSuggestion()
-      }
-    }
   }
 
   return (
@@ -297,7 +301,7 @@ export default function AutocompleteMultiSelectField({
           id={id}
           name={name}
           key={`${id}-${resetKey}`}
-          className={baseFieldClassName}
+          className={className ?? baseFieldClassName}
           type="text"
           autoComplete="off"
           aria-describedby={describedBy}

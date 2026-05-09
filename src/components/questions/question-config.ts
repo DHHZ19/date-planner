@@ -91,6 +91,7 @@ export const QUESTION_SECTIONS: QuestionSection[] = [
 
 export const QUESTION_FIELD_CONFIGS: Record<AnswerKey, QuestionFieldConfig> = {
   location: { key: 'location', fieldType: 'location', layout: 'full' },
+  planTypes: { key: 'planTypes', fieldType: 'text', layout: 'full' },
   dateTime: { key: 'dateTime', fieldType: 'dateTime', layout: 'half' },
   startingArea: { key: 'startingArea', fieldType: 'text', layout: 'half' },
   duration: { key: 'duration', fieldType: 'text', layout: 'half' },

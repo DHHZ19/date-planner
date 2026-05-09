@@ -341,7 +341,7 @@ export const fetchTicketmasterEvents = async ({
 
   const params = new URLSearchParams({
     apikey: apiKey,
-    size: '20',
+    size: '10',
     sort: 'date,asc',
     latlong: `${latitude.toFixed(4)},${longitude.toFixed(4)}`,
   })

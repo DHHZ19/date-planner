@@ -8,6 +8,7 @@ type PaginationButtonsProps = {
   isFirstStep: boolean
   getFieldValue: (key: AnswerKey) => string | undefined
   isSubmitting: boolean
+  isSubmitArmed: boolean
   onValidationErrorChange: (message: string | null) => void
 }
 
@@ -23,6 +24,7 @@ const PaginationButtons = ({
   isFirstStep,
   getFieldValue,
   isSubmitting,
+  isSubmitArmed,
   onValidationErrorChange,
 }: PaginationButtonsProps) => {
   const navigate = useNavigate()
@@ -161,7 +163,7 @@ const PaginationButtons = ({
         ) : (
           <button
             type="submit"
-            disabled={isSubmitting || !canProceed}
+            disabled={isSubmitting || !canProceed || !isSubmitArmed}
             className={primaryButtonClassName}
           >
             {isSubmitting ? (

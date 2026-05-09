@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import ErrorBanner from '#/components/ErrorBanner'
 import QuestionForm from '#/components/questions/QuestionForm'
@@ -20,9 +20,27 @@ export const QuestionInputs = ({
   const [locationError, setLocationError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [showSuccessOverlay, setShowSuccessOverlay] = useState(false)
+  const [isSubmitArmed, setIsSubmitArmed] = useState(false)
   const { search, updateField, getCsvFieldValues, toggleCsvFieldValue } =
     useQuestionSearchState()
   const { isSubmitting, submitError, submitDatePlan } = useDatePlanSubmission()
+  const isLastPage = currentSection.page === lastPage
+
+  useEffect(() => {
+    setIsSubmitArmed(false)
+
+    if (!isLastPage) {
+      return
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      setIsSubmitArmed(true)
+    })
+
+    return () => {
+      window.cancelAnimationFrame(rafId)
+    }
+  }, [isLastPage])
   const selectedPosition =
     typeof search.latitude === 'number' && typeof search.longitude === 'number'
       ? {
@@ -33,6 +51,10 @@ export const QuestionInputs = ({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (!isLastPage || !isSubmitArmed) {
+      return
+    }
 
     const result = await submitDatePlan({
       search,
@@ -113,6 +135,7 @@ export const QuestionInputs = ({
         }}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
+        isSubmitArmed={isSubmitArmed}
         onLocationErrorChange={setLocationError}
         onValidationErrorChange={setValidationError}
       />

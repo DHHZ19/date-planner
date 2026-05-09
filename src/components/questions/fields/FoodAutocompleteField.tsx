@@ -9,6 +9,7 @@ export default function FoodAutocompleteField({
   placeholder,
   onChange,
   resetKey,
+  className,
 }: {
   id: string
   name: string
@@ -17,6 +18,7 @@ export default function FoodAutocompleteField({
   placeholder: string
   onChange: (value: string | undefined) => void
   resetKey: number | string
+  className?: string
 }) {
   return (
     <AutocompleteMultiSelectField
@@ -30,6 +32,7 @@ export default function FoodAutocompleteField({
       ariaLabel="Food and cuisine suggestions"
       resetKey={resetKey}
       onChange={onChange}
+      className={className}
     />
   )
 }
