@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import type {
+  AiWebSearchResult,
   DatePlanResponse,
   NearbyPlace,
   SearchState,
@@ -86,6 +87,42 @@ const getReasoningSummary = (...places: Array<NearbyPlace | undefined>) => {
       place.reasoning.ai.reason.trim().length > 0,
   )?.reasoning?.ai.reason
 }
+
+const AiWebSearchCard = ({ result }: { result: AiWebSearchResult }) => (
+  <a
+    href={result.sourceUrl}
+    target="_blank"
+    rel="noreferrer"
+    className="block rounded-3xl border border-[var(--love-300)]/45 bg-gradient-to-br from-[var(--love-050)]/70 to-[var(--ui-surface)]/94 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:shadow-md"
+  >
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-xs font-bold tracking-[0.16em] text-[var(--love-700)] uppercase">
+          AI web search • {aiWebSearchCategoryLabels[result.category]}
+        </p>
+        <h3 className="mt-1 text-base leading-tight font-semibold text-[var(--ui-text)]">
+          {result.title}
+        </h3>
+      </div>
+      <span className="shrink-0 text-sm font-bold text-[var(--love-700)]">
+        ↗
+      </span>
+    </div>
+    <p className="mt-2 text-sm/6 text-[var(--ui-text-muted)]">
+      {result.summary}
+    </p>
+    {result.whyDateFriendly && (
+      <p className="mt-2 text-sm/6 font-medium text-[var(--ui-text)]">
+        {result.whyDateFriendly}
+      </p>
+    )}
+    <p className="mt-3 text-xs font-medium text-[var(--ui-text-muted)]">
+      {[result.venue, result.location, result.dateTimeText, result.priceText]
+        .filter(Boolean)
+        .join(' • ') || 'Source-backed web result'}
+    </p>
+  </a>
+)
 
 function ResultsPage() {
   const navigate = useNavigate()
@@ -269,7 +306,7 @@ function ResultsPage() {
           </div>
 
           {/* Stats Row */}
-          <div className="mt-8 grid grid-cols-3 gap-3">
+          <div className="mt-8 grid grid-cols-2 gap-3">
             <div className="flex flex-col items-center justify-center rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] py-3">
               <span className="text-xs font-semibold text-[var(--ui-text-muted)]">
                 Options
@@ -278,20 +315,12 @@ function ResultsPage() {
                 {suggestionCount}
               </span>
             </div>
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] py-3">
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-3">
               <span className="text-xs font-semibold text-[var(--ui-text-muted)]">
                 Area
               </span>
               <span className="text-sm font-bold text-[var(--ui-text)]">
                 {areaLabel}
-              </span>
-            </div>
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] py-3">
-              <span className="text-xs font-semibold text-[var(--ui-text-muted)]">
-                Vibes
-              </span>
-              <span className="text-sm font-bold text-[var(--ui-text)]">
-                {dateVibes.length}
               </span>
             </div>
           </div>
