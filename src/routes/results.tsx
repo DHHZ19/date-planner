@@ -53,6 +53,24 @@ const getAreaLabel = (datePlan: DatePlanResponse) => {
 const getMetadataText = (place: NearbyPlace | undefined) =>
   [formatPriceLevel(place?.priceLevel)].filter(Boolean).join(' • ')
 
+const aiWebSearchCategoryLabels = {
+  restaurant: 'Restaurant',
+  date_vibe: 'Date & Vibes',
+  activity: 'Activity',
+  event: 'Event',
+} as const
+
+const getPrimarySummaryText = (
+  place: NearbyPlace | undefined,
+  fallback: string,
+) => {
+  return (
+    (place?.reasoning?.google.length ? place.reasoning.google[0].text : null) ||
+    place?.primaryTypeDisplayName?.text ||
+    fallback
+  )
+}
+
 const getReasoningSummary = (...places: Array<NearbyPlace | undefined>) => {
   const summary = places.find(
     (place) =>
@@ -125,8 +143,13 @@ function ResultsPage() {
   const dateVibes = datePlan.dateVibes
   const activities = datePlan.activities
   const events = datePlan.events
+  const aiWebSearchResults = datePlan.aiWebSearchResults ?? []
   const suggestionCount =
-    restaurants.length + dateVibes.length + activities.length + events.length
+    restaurants.length +
+    dateVibes.length +
+    activities.length +
+    events.length +
+    aiWebSearchResults.length
 
   const restaurant = restaurants[restaurantIndex] as NearbyPlace | undefined
   const dateVibe = dateVibes[dateVibeIndex] as NearbyPlace | undefined
@@ -204,7 +227,13 @@ function ResultsPage() {
     }
   }
 
-  if (!restaurant && !dateVibe && !activity && !event) {
+  if (
+    !restaurant &&
+    !dateVibe &&
+    !activity &&
+    !event &&
+    aiWebSearchResults.length === 0
+  ) {
     return (
       <>
         <BackButton />
@@ -373,11 +402,7 @@ function ResultsPage() {
                       <p
                         className={`mt-1 text-sm text-[var(--ui-text-muted)] ${isRestaurantExpanded ? '' : 'line-clamp-2'}`}
                       >
-                        {(restaurant.reasoning?.google.length
-                          ? restaurant.reasoning.google[0].text
-                          : null) ||
-                          restaurant.primaryTypeDisplayName?.text ||
-                          'Recommended place'}
+                        {getPrimarySummaryText(restaurant, 'Recommended place')}
                       </p>
                       <p className="mt-2 text-xs font-medium text-[var(--ui-text-muted)]">
                         {restaurantMetadata || areaLabel}
@@ -510,11 +535,7 @@ function ResultsPage() {
                       <p
                         className={`mt-1 text-sm text-[var(--ui-text-muted)] ${isDateVibeExpanded ? '' : 'line-clamp-2'}`}
                       >
-                        {(dateVibe.reasoning?.google.length
-                          ? dateVibe.reasoning.google[0].text
-                          : null) ||
-                          dateVibe.primaryTypeDisplayName?.text ||
-                          'A great date stop'}
+                        {getPrimarySummaryText(dateVibe, 'A great date stop')}
                       </p>
                       <p className="mt-2 text-xs font-medium text-[var(--ui-text-muted)]">
                         {dateVibeMetadata || areaLabel}
@@ -646,9 +667,10 @@ function ResultsPage() {
                       <p
                         className={`mt-1 text-sm text-[var(--ui-text-muted)] ${isEventExpanded ? '' : 'line-clamp-2'}`}
                       >
-                        {(event.reasoning?.google.length
-                          ? event.reasoning.google[0].text
-                          : null) || 'A great live experience.'}
+                        {getPrimarySummaryText(
+                          event,
+                          'A great live experience.',
+                        )}
                       </p>
                       <p className="mt-2 text-xs font-medium text-[var(--ui-text-muted)]">
                         {eventMetadata || areaLabel}
@@ -771,11 +793,10 @@ function ResultsPage() {
                       <p
                         className={`mt-1 text-sm text-[var(--ui-text-muted)] ${isActivityExpanded ? '' : 'line-clamp-2'}`}
                       >
-                        {(activity.reasoning?.google.length
-                          ? activity.reasoning.google[0].text
-                          : null) ||
-                          activity.primaryTypeDisplayName?.text ||
-                          'Recommended activity'}
+                        {getPrimarySummaryText(
+                          activity,
+                          'Recommended activity',
+                        )}
                       </p>
                       <p className="mt-2 text-xs font-medium text-[var(--ui-text-muted)]">
                         {activityMetadata || areaLabel}
@@ -808,6 +829,66 @@ function ResultsPage() {
               )}
             </div>
           </div>
+
+          {aiWebSearchResults.length > 0 && (
+            <section className="mt-8 overflow-hidden rounded-3xl border border-[var(--love-050)] bg-gradient-to-br from-[var(--ui-surface)]/94 via-[var(--love-050)]/74 to-[var(--ui-surface-soft)]/92 p-5 shadow-[0_24px_60px_-32px_rgba(126,31,61,0.22)] backdrop-blur-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold tracking-[0.18em] text-[var(--love-700)] uppercase">
+                    AI web search
+                  </p>
+                  <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--ui-text)]">
+                    Fresh web finds
+                  </h2>
+                  <p className="mt-1 text-sm/6 text-[var(--ui-text-muted)]">
+                    Standalone ideas discovered from current web sources.
+                  </p>
+                </div>
+                <span className="rounded-full border border-[var(--love-300)]/50 bg-[var(--love-050)] px-3 py-1 text-xs font-bold text-[var(--love-700)]">
+                  {aiWebSearchResults.length}
+                </span>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3">
+                {aiWebSearchResults.map((result) => (
+                  <a
+                    key={result.id}
+                    href={result.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)]/88 p-4 transition-all hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold tracking-[0.14em] text-[var(--love-700)] uppercase">
+                          {aiWebSearchCategoryLabels[result.category]}
+                        </p>
+                        <h3 className="mt-1 text-base font-semibold text-[var(--ui-text)]">
+                          {result.title}
+                        </h3>
+                      </div>
+                      <span className="shrink-0 text-sm font-bold text-[var(--love-700)]">
+                        ↗
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm/6 text-[var(--ui-text-muted)]">
+                      {result.summary}
+                    </p>
+                    {result.whyDateFriendly && (
+                      <p className="mt-2 text-sm/6 font-medium text-[var(--ui-text)]">
+                        {result.whyDateFriendly}
+                      </p>
+                    )}
+                    <p className="mt-3 text-xs font-medium text-[var(--ui-text-muted)]">
+                      {[result.venue, result.location, result.dateTimeText]
+                        .filter(Boolean)
+                        .join(' • ') || 'Source-backed web result'}
+                    </p>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* AI Summary */}
           <div className="mt-8 overflow-hidden rounded-3xl border border-[var(--love-050)] bg-gradient-to-br from-[var(--ui-surface)]/94 via-[var(--love-050)]/74 to-[var(--ui-surface-soft)]/92 p-5 shadow-[0_24px_60px_-32px_rgba(126,31,61,0.22)] backdrop-blur-sm">

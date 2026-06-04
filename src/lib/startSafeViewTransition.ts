@@ -14,10 +14,7 @@ const handleViewTransitionRejection = (error: unknown) => {
 export const startSafeViewTransition = (
   updateCallback: () => void | Promise<void>,
 ) => {
-  if (
-    typeof document === 'undefined' ||
-    !('startViewTransition' in document)
-  ) {
+  if (typeof document === 'undefined' || !('startViewTransition' in document)) {
     void updateCallback()
     return
   }

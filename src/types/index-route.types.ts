@@ -30,6 +30,19 @@ export type NearbyPlacesResponse = ValidateSerializableInput<
   NearbyPlace[]
 >
 
+export type AiWebSearchResult = {
+  id: string
+  title: string
+  summary: string
+  category: 'restaurant' | 'date_vibe' | 'activity' | 'event'
+  sourceUrl: string
+  venue?: string | null
+  location?: string | null
+  dateTimeText?: string | null
+  priceText?: string | null
+  whyDateFriendly?: string | null
+}
+
 export type DatePlanResponse = ValidateSerializableInput<
   Register,
   {
@@ -37,6 +50,7 @@ export type DatePlanResponse = ValidateSerializableInput<
     dateVibes: NearbyPlace[]
     activities: NearbyPlace[]
     events: NearbyPlace[]
+    aiWebSearchResults: AiWebSearchResult[]
     searchState?: SearchState
   }
 >
