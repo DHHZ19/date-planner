@@ -118,3 +118,25 @@ export const FOOD_SUGGESTIONS: FoodSuggestion[] = [
   { value: 'authentic', label: 'Authentic', category: 'Vibe' },
   { value: 'fusion', label: 'Fusion', category: 'Vibe' },
 ]
+
+export const CUISINE_FOOD_SUGGESTIONS = FOOD_SUGGESTIONS.filter(
+  (suggestion) => suggestion.category === 'Cuisine',
+)
+
+export const getRandomCuisineSurprise = () => {
+  const shuffledCuisines = [...CUISINE_FOOD_SUGGESTIONS]
+
+  for (let index = shuffledCuisines.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1))
+    const currentCuisine = shuffledCuisines[index]
+
+    shuffledCuisines[index] = shuffledCuisines[swapIndex]
+    shuffledCuisines[swapIndex] = currentCuisine
+  }
+
+  const selectedCuisines = shuffledCuisines.slice(0, 2)
+
+  return selectedCuisines.length > 0
+    ? selectedCuisines.map((suggestion) => suggestion.label).join(', ')
+    : 'Restaurant'
+}
