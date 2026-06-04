@@ -88,40 +88,77 @@ const getReasoningSummary = (...places: Array<NearbyPlace | undefined>) => {
   )?.reasoning?.ai.reason
 }
 
-const AiWebSearchCard = ({ result }: { result: AiWebSearchResult }) => (
-  <a
-    href={result.sourceUrl}
-    target="_blank"
-    rel="noreferrer"
-    className="block rounded-3xl border border-[var(--love-300)]/45 bg-gradient-to-br from-[var(--love-050)]/70 to-[var(--ui-surface)]/94 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:shadow-md"
-  >
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-bold tracking-[0.16em] text-[var(--love-700)] uppercase">
-          AI web search • {aiWebSearchCategoryLabels[result.category]}
-        </p>
-        <h3 className="mt-1 text-base leading-tight font-semibold text-[var(--ui-text)]">
-          {result.title}
-        </h3>
-      </div>
-      <span className="shrink-0 text-sm font-bold text-[var(--love-700)]">
-        ↗
-      </span>
-    </div>
-    <p className="mt-2 text-sm/6 text-[var(--ui-text-muted)]">
-      {result.summary}
-    </p>
-    {result.whyDateFriendly && (
-      <p className="mt-2 text-sm/6 font-medium text-[var(--ui-text)]">
-        {result.whyDateFriendly}
-      </p>
-    )}
-    <p className="mt-3 text-xs font-medium text-[var(--ui-text-muted)]">
-      {[result.venue, result.location, result.dateTimeText, result.priceText]
+type ResultItem =
+  | { kind: 'place'; place: NearbyPlace }
+  | { kind: 'ai'; result: AiWebSearchResult }
+
+const createResultItems = (
+  places: NearbyPlace[],
+  aiResults: AiWebSearchResult[],
+): ResultItem[] => [
+  ...places.map((place) => ({ kind: 'place' as const, place })),
+  ...aiResults.map((result) => ({ kind: 'ai' as const, result })),
+]
+
+const getPlaceFromResult = (item: ResultItem | undefined) =>
+  item?.kind === 'place' ? item.place : undefined
+
+const getAiFromResult = (item: ResultItem | undefined) =>
+  item?.kind === 'ai' ? item.result : undefined
+
+const getAiMetadataText = (result: AiWebSearchResult | undefined) =>
+  result
+    ? [result.venue, result.location, result.dateTimeText, result.priceText]
         .filter(Boolean)
-        .join(' • ') || 'Source-backed web result'}
-    </p>
-  </a>
+        .join(' • ')
+    : ''
+
+const getResultTitle = (item: ResultItem | undefined) => {
+  if (!item) return ''
+  return item.kind === 'ai' ? item.result.title : item.place.displayName?.text
+}
+
+const getResultSummary = (item: ResultItem | undefined, fallback: string) => {
+  if (!item) return fallback
+  return item.kind === 'ai'
+    ? item.result.summary
+    : getPrimarySummaryText(item.place, fallback)
+}
+
+const getResultMetadata = ({
+  item,
+  placeMetadata,
+  areaLabel,
+}: {
+  item: ResultItem | undefined
+  placeMetadata: string
+  areaLabel: string
+}) => {
+  if (item?.kind === 'ai') {
+    return getAiMetadataText(item.result) || 'Source-backed web result'
+  }
+
+  return placeMetadata || areaLabel
+}
+
+const ResultImage = ({
+  place,
+  isExpanded,
+}: {
+  place: NearbyPlace | undefined
+  isExpanded: boolean
+}) => (
+  <div
+    className={`${isExpanded ? 'h-48 w-full' : 'h-20 w-20'} shrink-0 overflow-hidden rounded-xl transition-all duration-300`}
+  >
+    {place ? (
+      <PlaceImageCarousel photos={place.photos} />
+    ) : (
+      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--love-050)] to-[var(--ui-surface-soft)] text-xs font-bold tracking-[0.16em] text-[var(--love-700)] uppercase">
+        AI
+      </div>
+    )}
+  </div>
 )
 
 function ResultsPage() {
@@ -181,6 +218,31 @@ function ResultsPage() {
   const activities = datePlan.activities
   const events = datePlan.events
   const aiWebSearchResults = datePlan.aiWebSearchResults ?? []
+  const restaurantAiWebSearchResults = aiWebSearchResults.filter(
+    (result) => result.category === 'restaurant',
+  )
+  const dateVibeAiWebSearchResults = aiWebSearchResults.filter(
+    (result) => result.category === 'date_vibe',
+  )
+  const activityAiWebSearchResults = aiWebSearchResults.filter(
+    (result) => result.category === 'activity',
+  )
+  const eventAiWebSearchResults = aiWebSearchResults.filter(
+    (result) => result.category === 'event',
+  )
+  const restaurantResults = createResultItems(
+    restaurants,
+    restaurantAiWebSearchResults,
+  )
+  const dateVibeResults = createResultItems(
+    dateVibes,
+    dateVibeAiWebSearchResults,
+  )
+  const activityResults = createResultItems(
+    activities,
+    activityAiWebSearchResults,
+  )
+  const eventResults = createResultItems(events, eventAiWebSearchResults)
   const suggestionCount =
     restaurants.length +
     dateVibes.length +
@@ -188,10 +250,18 @@ function ResultsPage() {
     events.length +
     aiWebSearchResults.length
 
-  const restaurant = restaurants[restaurantIndex] as NearbyPlace | undefined
-  const dateVibe = dateVibes[dateVibeIndex] as NearbyPlace | undefined
-  const activity = activities[activityIndex] as NearbyPlace | undefined
-  const event = events[eventIndex] as NearbyPlace | undefined
+  const restaurantResult = restaurantResults[restaurantIndex]
+  const dateVibeResult = dateVibeResults[dateVibeIndex]
+  const activityResult = activityResults[activityIndex]
+  const eventResult = eventResults[eventIndex]
+  const restaurant = getPlaceFromResult(restaurantResult)
+  const dateVibe = getPlaceFromResult(dateVibeResult)
+  const activity = getPlaceFromResult(activityResult)
+  const event = getPlaceFromResult(eventResult)
+  const restaurantAiResult = getAiFromResult(restaurantResult)
+  const dateVibeAiResult = getAiFromResult(dateVibeResult)
+  const activityAiResult = getAiFromResult(activityResult)
+  const eventAiResult = getAiFromResult(eventResult)
   const eventLink = event?.websiteUri ?? event?.googleMapsUri
   const areaLabel = getAreaLabel(datePlan)
   const restaurantMetadata = getMetadataText(restaurant)
@@ -204,63 +274,66 @@ function ResultsPage() {
 
   const handleNextRestaurant = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (restaurants.length > 0) {
-      setRestaurantIndex((prev) => (prev + 1) % restaurants.length)
+    if (restaurantResults.length > 0) {
+      setRestaurantIndex((prev) => (prev + 1) % restaurantResults.length)
     }
   }
 
   const handlePrevRestaurant = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (restaurants.length > 0) {
+    if (restaurantResults.length > 0) {
       setRestaurantIndex(
-        (prev) => (prev - 1 + restaurants.length) % restaurants.length,
+        (prev) =>
+          (prev - 1 + restaurantResults.length) % restaurantResults.length,
       )
     }
   }
 
   const handleNextDateVibe = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (dateVibes.length > 0) {
-      setDateVibeIndex((prev) => (prev + 1) % dateVibes.length)
+    if (dateVibeResults.length > 0) {
+      setDateVibeIndex((prev) => (prev + 1) % dateVibeResults.length)
     }
   }
 
   const handlePrevDateVibe = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (dateVibes.length > 0) {
+    if (dateVibeResults.length > 0) {
       setDateVibeIndex(
-        (prev) => (prev - 1 + dateVibes.length) % dateVibes.length,
+        (prev) => (prev - 1 + dateVibeResults.length) % dateVibeResults.length,
       )
     }
   }
 
   const handleNextActivity = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (activities.length > 0) {
-      setActivityIndex((prev) => (prev + 1) % activities.length)
+    if (activityResults.length > 0) {
+      setActivityIndex((prev) => (prev + 1) % activityResults.length)
     }
   }
 
   const handlePrevActivity = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (activities.length > 0) {
+    if (activityResults.length > 0) {
       setActivityIndex(
-        (prev) => (prev - 1 + activities.length) % activities.length,
+        (prev) => (prev - 1 + activityResults.length) % activityResults.length,
       )
     }
   }
 
   const handleNextEvent = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (events.length > 0) {
-      setEventIndex((prev) => (prev + 1) % events.length)
+    if (eventResults.length > 0) {
+      setEventIndex((prev) => (prev + 1) % eventResults.length)
     }
   }
 
   const handlePrevEvent = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (events.length > 0) {
-      setEventIndex((prev) => (prev - 1 + events.length) % events.length)
+    if (eventResults.length > 0) {
+      setEventIndex(
+        (prev) => (prev - 1 + eventResults.length) % eventResults.length,
+      )
     }
   }
 
@@ -332,7 +405,7 @@ function ResultsPage() {
 
             <div className="flex flex-col gap-6">
               {/* Restaurant */}
-              {restaurant && (
+              {restaurantResult && (
                 <div className="relative flex gap-4">
                   <div className="z-10 mt-2 flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-[var(--love-900)] text-white shadow-sm">
                     <svg
@@ -355,18 +428,22 @@ function ResultsPage() {
                       setIsRestaurantExpanded(!isRestaurantExpanded)
                     }
                   >
-                    <div
-                      className={`${isRestaurantExpanded ? 'h-48 w-full' : 'h-20 w-20'} shrink-0 overflow-hidden rounded-xl transition-all duration-300`}
-                    >
-                      <PlaceImageCarousel photos={restaurant.photos} />
-                    </div>
+                    <ResultImage
+                      place={restaurant}
+                      isExpanded={isRestaurantExpanded}
+                    />
                     <div className="flex flex-1 flex-col justify-center">
                       <div className="flex items-start justify-between">
                         <div className="flex min-w-0 flex-1 flex-col">
+                          {restaurantAiResult && (
+                            <p className="mb-1 text-xs font-bold tracking-[0.16em] text-[var(--love-700)] uppercase">
+                              AI web search • Restaurant
+                            </p>
+                          )}
                           <h3 className="line-clamp-2 min-h-[2.5rem] text-base leading-tight font-semibold text-[var(--ui-text)]">
-                            {restaurant.displayName?.text}
+                            {getResultTitle(restaurantResult)}
                           </h3>
-                          {restaurants.length > 1 && (
+                          {restaurantResults.length > 1 && (
                             <div className="mt-1 flex items-center gap-2 text-xs font-medium text-[var(--love-700)]">
                               <button
                                 onClick={handlePrevRestaurant}
@@ -387,7 +464,8 @@ function ResultsPage() {
                                 </svg>
                               </button>
                               <span>
-                                {restaurantIndex + 1} of {restaurants.length}
+                                {restaurantIndex + 1} of{' '}
+                                {restaurantResults.length}
                               </span>
                               <button
                                 onClick={handleNextRestaurant}
@@ -431,21 +509,35 @@ function ResultsPage() {
                       <p
                         className={`mt-1 text-sm text-[var(--ui-text-muted)] ${isRestaurantExpanded ? '' : 'line-clamp-2'}`}
                       >
-                        {getPrimarySummaryText(restaurant, 'Recommended place')}
+                        {getResultSummary(
+                          restaurantResult,
+                          'Recommended place',
+                        )}
                       </p>
                       <p className="mt-2 text-xs font-medium text-[var(--ui-text-muted)]">
-                        {restaurantMetadata || areaLabel}
+                        {getResultMetadata({
+                          item: restaurantResult,
+                          placeMetadata: restaurantMetadata,
+                          areaLabel,
+                        })}
                       </p>
                       {isRestaurantExpanded && (
                         <div className="animate-in fade-in mt-4 flex flex-col gap-2 border-t border-[var(--ui-border)] pt-4">
-                          <div className="flex items-center justify-between text-sm text-[var(--ui-text)]">
-                            <span className="font-medium">Rating:</span>
-                            <span>
-                              ⭐ {restaurant.rating || 'N/A'} (
-                              {restaurant.userRatingCount || 0} reviews)
-                            </span>
-                          </div>
-                          {restaurant.googleMapsUri && (
+                          {restaurant && (
+                            <div className="flex items-center justify-between text-sm text-[var(--ui-text)]">
+                              <span className="font-medium">Rating:</span>
+                              <span>
+                                ⭐ {restaurant.rating || 'N/A'} (
+                                {restaurant.userRatingCount || 0} reviews)
+                              </span>
+                            </div>
+                          )}
+                          {restaurantAiResult?.whyDateFriendly && (
+                            <p className="text-sm/6 font-medium text-[var(--ui-text)]">
+                              {restaurantAiResult.whyDateFriendly}
+                            </p>
+                          )}
+                          {restaurant?.googleMapsUri && (
                             <a
                               href={restaurant.googleMapsUri}
                               target="_blank"
@@ -456,6 +548,17 @@ function ResultsPage() {
                               Open in Google Maps ↗
                             </a>
                           )}
+                          {restaurantAiResult && (
+                            <a
+                              href={restaurantAiResult.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-2 inline-block rounded-xl bg-[var(--love-050)] px-4 py-2 text-center text-sm font-semibold text-[var(--love-700)] transition-colors hover:bg-[var(--love-100)]"
+                            >
+                              View AI source ↗
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -464,7 +567,7 @@ function ResultsPage() {
               )}
 
               {/* Date & Vibes */}
-              {dateVibe && (
+              {dateVibeResult && (
                 <div className="relative flex gap-4">
                   <div className="z-10 mt-2 flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-[var(--love-900)] text-white shadow-sm">
                     <svg
@@ -485,21 +588,22 @@ function ResultsPage() {
                     className={`flex flex-1 ${isDateVibeExpanded ? 'flex-col' : 'gap-4'} cursor-pointer overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface)]/94 p-4 shadow-sm transition-all duration-300`}
                     onClick={() => setIsDateVibeExpanded(!isDateVibeExpanded)}
                   >
-                    <div
-                      className={`${isDateVibeExpanded ? 'h-48 w-full' : 'h-20 w-20'} shrink-0 overflow-hidden rounded-xl transition-all duration-300`}
-                    >
-                      <PlaceImageCarousel photos={dateVibe.photos} />
-                    </div>
+                    <ResultImage
+                      place={dateVibe}
+                      isExpanded={isDateVibeExpanded}
+                    />
                     <div className="flex flex-1 flex-col justify-center">
                       <div className="flex items-start justify-between">
                         <div className="flex min-w-0 flex-1 flex-col">
                           <p className="mb-1 text-xs font-bold tracking-[0.16em] text-[var(--love-700)] uppercase">
-                            Date & Vibes
+                            {dateVibeAiResult
+                              ? 'AI web search • Date & Vibes'
+                              : 'Date & Vibes'}
                           </p>
                           <h3 className="line-clamp-2 min-h-[2.5rem] text-base leading-tight font-semibold text-[var(--ui-text)]">
-                            {dateVibe.displayName?.text}
+                            {getResultTitle(dateVibeResult)}
                           </h3>
-                          {dateVibes.length > 1 && (
+                          {dateVibeResults.length > 1 && (
                             <div className="mt-1 flex items-center gap-2 text-xs font-medium text-[var(--love-700)]">
                               <button
                                 onClick={handlePrevDateVibe}
@@ -520,7 +624,7 @@ function ResultsPage() {
                                 </svg>
                               </button>
                               <span>
-                                {dateVibeIndex + 1} of {dateVibes.length}
+                                {dateVibeIndex + 1} of {dateVibeResults.length}
                               </span>
                               <button
                                 onClick={handleNextDateVibe}
@@ -564,21 +668,32 @@ function ResultsPage() {
                       <p
                         className={`mt-1 text-sm text-[var(--ui-text-muted)] ${isDateVibeExpanded ? '' : 'line-clamp-2'}`}
                       >
-                        {getPrimarySummaryText(dateVibe, 'A great date stop')}
+                        {getResultSummary(dateVibeResult, 'A great date stop')}
                       </p>
                       <p className="mt-2 text-xs font-medium text-[var(--ui-text-muted)]">
-                        {dateVibeMetadata || areaLabel}
+                        {getResultMetadata({
+                          item: dateVibeResult,
+                          placeMetadata: dateVibeMetadata,
+                          areaLabel,
+                        })}
                       </p>
                       {isDateVibeExpanded && (
                         <div className="animate-in fade-in mt-4 flex flex-col gap-2 border-t border-[var(--ui-border)] pt-4">
-                          <div className="flex items-center justify-between text-sm text-[var(--ui-text)]">
-                            <span className="font-medium">Rating:</span>
-                            <span>
-                              ⭐ {dateVibe.rating || 'N/A'} (
-                              {dateVibe.userRatingCount || 0} reviews)
-                            </span>
-                          </div>
-                          {dateVibe.googleMapsUri && (
+                          {dateVibe && (
+                            <div className="flex items-center justify-between text-sm text-[var(--ui-text)]">
+                              <span className="font-medium">Rating:</span>
+                              <span>
+                                ⭐ {dateVibe.rating || 'N/A'} (
+                                {dateVibe.userRatingCount || 0} reviews)
+                              </span>
+                            </div>
+                          )}
+                          {dateVibeAiResult?.whyDateFriendly && (
+                            <p className="text-sm/6 font-medium text-[var(--ui-text)]">
+                              {dateVibeAiResult.whyDateFriendly}
+                            </p>
+                          )}
+                          {dateVibe?.googleMapsUri && (
                             <a
                               href={dateVibe.googleMapsUri}
                               target="_blank"
@@ -589,6 +704,17 @@ function ResultsPage() {
                               Open in Google Maps ↗
                             </a>
                           )}
+                          {dateVibeAiResult && (
+                            <a
+                              href={dateVibeAiResult.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-2 inline-block rounded-xl bg-[var(--love-050)] px-4 py-2 text-center text-sm font-semibold text-[var(--love-700)] transition-colors hover:bg-[var(--love-100)]"
+                            >
+                              View AI source ↗
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -597,9 +723,9 @@ function ResultsPage() {
               )}
 
               {/* Event */}
-              {event && (
+              {eventResult && (
                 <div
-                  className={`relative flex gap-4 ${dateVibe || activity ? 'order-last' : ''}`}
+                  className={`relative flex gap-4 ${dateVibeResult || activityResult ? 'order-last' : ''}`}
                 >
                   <div className="z-10 mt-2 flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-[var(--love-900)] text-white shadow-sm">
                     <svg
@@ -620,18 +746,19 @@ function ResultsPage() {
                     className={`flex flex-1 ${isEventExpanded ? 'flex-col' : 'gap-4'} cursor-pointer overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface)]/94 p-4 shadow-sm transition-all duration-300`}
                     onClick={() => setIsEventExpanded(!isEventExpanded)}
                   >
-                    <div
-                      className={`${isEventExpanded ? 'h-48 w-full' : 'h-20 w-20'} shrink-0 overflow-hidden rounded-xl transition-all duration-300`}
-                    >
-                      <PlaceImageCarousel photos={event.photos} />
-                    </div>
+                    <ResultImage place={event} isExpanded={isEventExpanded} />
                     <div className="flex flex-1 flex-col justify-center">
                       <div className="flex items-start justify-between">
                         <div className="flex min-w-0 flex-1 flex-col">
+                          {eventAiResult && (
+                            <p className="mb-1 text-xs font-bold tracking-[0.16em] text-[var(--love-700)] uppercase">
+                              AI web search • Event
+                            </p>
+                          )}
                           <h3 className="line-clamp-2 min-h-[2.5rem] text-base leading-tight font-semibold text-[var(--ui-text)]">
-                            {event.displayName?.text}
+                            {getResultTitle(eventResult)}
                           </h3>
-                          {events.length > 1 && (
+                          {eventResults.length > 1 && (
                             <div className="mt-1 flex items-center gap-2 text-xs font-medium text-[var(--love-700)]">
                               <button
                                 onClick={handlePrevEvent}
@@ -652,7 +779,7 @@ function ResultsPage() {
                                 </svg>
                               </button>
                               <span>
-                                {eventIndex + 1} of {events.length}
+                                {eventIndex + 1} of {eventResults.length}
                               </span>
                               <button
                                 onClick={handleNextEvent}
@@ -696,16 +823,25 @@ function ResultsPage() {
                       <p
                         className={`mt-1 text-sm text-[var(--ui-text-muted)] ${isEventExpanded ? '' : 'line-clamp-2'}`}
                       >
-                        {getPrimarySummaryText(
-                          event,
+                        {getResultSummary(
+                          eventResult,
                           'A great live experience.',
                         )}
                       </p>
                       <p className="mt-2 text-xs font-medium text-[var(--ui-text-muted)]">
-                        {eventMetadata || areaLabel}
+                        {getResultMetadata({
+                          item: eventResult,
+                          placeMetadata: eventMetadata,
+                          areaLabel,
+                        })}
                       </p>
                       {isEventExpanded && (
                         <div className="animate-in fade-in mt-4 flex flex-col gap-2 border-t border-[var(--ui-border)] pt-4">
+                          {eventAiResult?.whyDateFriendly && (
+                            <p className="text-sm/6 font-medium text-[var(--ui-text)]">
+                              {eventAiResult.whyDateFriendly}
+                            </p>
+                          )}
                           {eventLink && (
                             <a
                               href={eventLink}
@@ -717,6 +853,17 @@ function ResultsPage() {
                               View Event ↗
                             </a>
                           )}
+                          {eventAiResult && (
+                            <a
+                              href={eventAiResult.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-2 inline-block rounded-xl bg-[var(--love-050)] px-4 py-2 text-center text-sm font-semibold text-[var(--love-700)] transition-colors hover:bg-[var(--love-100)]"
+                            >
+                              View AI source ↗
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -725,7 +872,7 @@ function ResultsPage() {
               )}
 
               {/* Activity */}
-              {activity && (
+              {activityResult && (
                 <div className="relative flex gap-4">
                   <div className="z-10 mt-2 flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-[var(--love-900)] text-white shadow-sm">
                     <svg
@@ -746,18 +893,22 @@ function ResultsPage() {
                     className={`flex flex-1 ${isActivityExpanded ? 'flex-col' : 'gap-4'} cursor-pointer overflow-hidden rounded-3xl border border-[var(--ui-border)] bg-[var(--ui-surface)]/94 p-4 shadow-sm transition-all duration-300`}
                     onClick={() => setIsActivityExpanded(!isActivityExpanded)}
                   >
-                    <div
-                      className={`${isActivityExpanded ? 'h-48 w-full' : 'h-20 w-20'} shrink-0 overflow-hidden rounded-xl transition-all duration-300`}
-                    >
-                      <PlaceImageCarousel photos={activity.photos} />
-                    </div>
+                    <ResultImage
+                      place={activity}
+                      isExpanded={isActivityExpanded}
+                    />
                     <div className="flex flex-1 flex-col justify-center">
                       <div className="flex items-start justify-between">
                         <div className="flex min-w-0 flex-1 flex-col">
+                          {activityAiResult && (
+                            <p className="mb-1 text-xs font-bold tracking-[0.16em] text-[var(--love-700)] uppercase">
+                              AI web search • Activity
+                            </p>
+                          )}
                           <h3 className="line-clamp-2 min-h-[2.5rem] text-base leading-tight font-semibold text-[var(--ui-text)]">
-                            {activity.displayName?.text}
+                            {getResultTitle(activityResult)}
                           </h3>
-                          {activities.length > 1 && (
+                          {activityResults.length > 1 && (
                             <div className="mt-1 flex items-center gap-2 text-xs font-medium text-[var(--love-700)]">
                               <button
                                 onClick={handlePrevActivity}
@@ -778,7 +929,7 @@ function ResultsPage() {
                                 </svg>
                               </button>
                               <span>
-                                {activityIndex + 1} of {activities.length}
+                                {activityIndex + 1} of {activityResults.length}
                               </span>
                               <button
                                 onClick={handleNextActivity}
@@ -822,24 +973,35 @@ function ResultsPage() {
                       <p
                         className={`mt-1 text-sm text-[var(--ui-text-muted)] ${isActivityExpanded ? '' : 'line-clamp-2'}`}
                       >
-                        {getPrimarySummaryText(
-                          activity,
+                        {getResultSummary(
+                          activityResult,
                           'Recommended activity',
                         )}
                       </p>
                       <p className="mt-2 text-xs font-medium text-[var(--ui-text-muted)]">
-                        {activityMetadata || areaLabel}
+                        {getResultMetadata({
+                          item: activityResult,
+                          placeMetadata: activityMetadata,
+                          areaLabel,
+                        })}
                       </p>
                       {isActivityExpanded && (
                         <div className="animate-in fade-in mt-4 flex flex-col gap-2 border-t border-[var(--ui-border)] pt-4">
-                          <div className="flex items-center justify-between text-sm text-[var(--ui-text)]">
-                            <span className="font-medium">Rating:</span>
-                            <span>
-                              ⭐ {activity.rating || 'N/A'} (
-                              {activity.userRatingCount || 0} reviews)
-                            </span>
-                          </div>
-                          {activity.googleMapsUri && (
+                          {activity && (
+                            <div className="flex items-center justify-between text-sm text-[var(--ui-text)]">
+                              <span className="font-medium">Rating:</span>
+                              <span>
+                                ⭐ {activity.rating || 'N/A'} (
+                                {activity.userRatingCount || 0} reviews)
+                              </span>
+                            </div>
+                          )}
+                          {activityAiResult?.whyDateFriendly && (
+                            <p className="text-sm/6 font-medium text-[var(--ui-text)]">
+                              {activityAiResult.whyDateFriendly}
+                            </p>
+                          )}
+                          {activity?.googleMapsUri && (
                             <a
                               href={activity.googleMapsUri}
                               target="_blank"
@@ -850,6 +1012,17 @@ function ResultsPage() {
                               Open in Google Maps ↗
                             </a>
                           )}
+                          {activityAiResult && (
+                            <a
+                              href={activityAiResult.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-2 inline-block rounded-xl bg-[var(--love-050)] px-4 py-2 text-center text-sm font-semibold text-[var(--love-700)] transition-colors hover:bg-[var(--love-100)]"
+                            >
+                              View AI source ↗
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -858,66 +1031,6 @@ function ResultsPage() {
               )}
             </div>
           </div>
-
-          {aiWebSearchResults.length > 0 && (
-            <section className="mt-8 overflow-hidden rounded-3xl border border-[var(--love-050)] bg-gradient-to-br from-[var(--ui-surface)]/94 via-[var(--love-050)]/74 to-[var(--ui-surface-soft)]/92 p-5 shadow-[0_24px_60px_-32px_rgba(126,31,61,0.22)] backdrop-blur-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold tracking-[0.18em] text-[var(--love-700)] uppercase">
-                    AI web search
-                  </p>
-                  <h2 className="mt-1 text-xl font-semibold tracking-tight text-[var(--ui-text)]">
-                    Fresh web finds
-                  </h2>
-                  <p className="mt-1 text-sm/6 text-[var(--ui-text-muted)]">
-                    Standalone ideas discovered from current web sources.
-                  </p>
-                </div>
-                <span className="rounded-full border border-[var(--love-300)]/50 bg-[var(--love-050)] px-3 py-1 text-xs font-bold text-[var(--love-700)]">
-                  {aiWebSearchResults.length}
-                </span>
-              </div>
-
-              <div className="mt-5 flex flex-col gap-3">
-                {aiWebSearchResults.map((result) => (
-                  <a
-                    key={result.id}
-                    href={result.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)]/88 p-4 transition-all hover:-translate-y-0.5 hover:border-[var(--love-300)] hover:shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold tracking-[0.14em] text-[var(--love-700)] uppercase">
-                          {aiWebSearchCategoryLabels[result.category]}
-                        </p>
-                        <h3 className="mt-1 text-base font-semibold text-[var(--ui-text)]">
-                          {result.title}
-                        </h3>
-                      </div>
-                      <span className="shrink-0 text-sm font-bold text-[var(--love-700)]">
-                        ↗
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm/6 text-[var(--ui-text-muted)]">
-                      {result.summary}
-                    </p>
-                    {result.whyDateFriendly && (
-                      <p className="mt-2 text-sm/6 font-medium text-[var(--ui-text)]">
-                        {result.whyDateFriendly}
-                      </p>
-                    )}
-                    <p className="mt-3 text-xs font-medium text-[var(--ui-text-muted)]">
-                      {[result.venue, result.location, result.dateTimeText]
-                        .filter(Boolean)
-                        .join(' • ') || 'Source-backed web result'}
-                    </p>
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
 
           {/* AI Summary */}
           <div className="mt-8 overflow-hidden rounded-3xl border border-[var(--love-050)] bg-gradient-to-br from-[var(--ui-surface)]/94 via-[var(--love-050)]/74 to-[var(--ui-surface-soft)]/92 p-5 shadow-[0_24px_60px_-32px_rgba(126,31,61,0.22)] backdrop-blur-sm">
@@ -959,21 +1072,23 @@ function ResultsPage() {
             </button>
             <button
               onClick={() => {
-                if (restaurants.length > 0) {
+                if (restaurantResults.length > 0) {
                   setRestaurantIndex(
-                    Math.floor(Math.random() * restaurants.length),
+                    Math.floor(Math.random() * restaurantResults.length),
                   )
                 }
-                if (dateVibes.length > 0) {
-                  setDateVibeIndex(Math.floor(Math.random() * dateVibes.length))
+                if (dateVibeResults.length > 0) {
+                  setDateVibeIndex(
+                    Math.floor(Math.random() * dateVibeResults.length),
+                  )
                 }
-                if (activities.length > 0) {
+                if (activityResults.length > 0) {
                   setActivityIndex(
-                    Math.floor(Math.random() * activities.length),
+                    Math.floor(Math.random() * activityResults.length),
                   )
                 }
-                if (events.length > 0) {
-                  setEventIndex(Math.floor(Math.random() * events.length))
+                if (eventResults.length > 0) {
+                  setEventIndex(Math.floor(Math.random() * eventResults.length))
                 }
               }}
               className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] py-3.5 font-bold text-[var(--love-700)] shadow-sm transition-all hover:bg-[var(--ui-surface-soft)]"

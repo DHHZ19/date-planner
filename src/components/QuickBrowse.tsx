@@ -8,7 +8,7 @@ import DateTimeField from '#/components/questions/fields/DateTimeField'
 import QuickFoodField from '#/components/questions/fields/QuickFoodField'
 import PlanTypeField from '#/components/questions/fields/PlanTypeField'
 import ErrorBanner from '#/components/ErrorBanner'
-import { FOOD_SUGGESTIONS } from '#/constants/food-suggestions'
+import { getRandomCuisineSurprise } from '#/constants/food-suggestions'
 import { startSafeViewTransition } from '#/lib/startSafeViewTransition'
 
 const PLAN_TYPE_HELP_ITEMS = [
@@ -95,10 +95,8 @@ export function QuickBrowse() {
 
     let finalFood = search.food
     if (wantsRestaurant && (!finalFood || finalFood.trim().length === 0)) {
-      // If "Surprise me" is active (empty food), pick a random cuisine on submit
-      finalFood =
-        FOOD_SUGGESTIONS[Math.floor(Math.random() * FOOD_SUGGESTIONS.length)]
-          ?.label || 'Restaurant'
+      // If "Surprise me" is active (empty food), pick broad cuisines on submit.
+      finalFood = getRandomCuisineSurprise()
       updateField('food', finalFood)
     } else if (!wantsRestaurant) {
       finalFood = undefined

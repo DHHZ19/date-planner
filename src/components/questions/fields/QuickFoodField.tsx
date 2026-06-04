@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import FoodAutocompleteField from './FoodAutocompleteField'
-import { FOOD_SUGGESTIONS } from '#/constants/food-suggestions'
+import { getRandomCuisineSurprise } from '#/constants/food-suggestions'
 
 const QUICK_FOOD_OPTIONS = [
   { label: 'Italian', value: 'Italian' },
@@ -41,10 +41,7 @@ export default function QuickFoodField({
       onChange(undefined)
     } else {
       // If already in "Surprise me" mode, act as a "Spin the wheel" button
-      const randomFood =
-        FOOD_SUGGESTIONS[Math.floor(Math.random() * FOOD_SUGGESTIONS.length)]
-      // @ts-expect-error Typescript incorrectly thinks randomFood can never be undefined if array gets empty. In our case it won't but the error is noisy.
-      onChange(randomFood.label)
+      onChange(getRandomCuisineSurprise())
     }
   }
 
