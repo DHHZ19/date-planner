@@ -9,6 +9,7 @@ import {
 } from '#/schemas/index.schema'
 import type {
   ActivityBrowseCategory,
+  AiWebSearchResult,
   DatePlanResponse,
   DateTimeOption,
   GoogleSearchTextResponse,
@@ -79,6 +80,7 @@ const MAX_GOOGLE_PLACES_RESULTS = 10
 const MAX_CITY_AUTOCOMPLETE_RESULTS = 6
 const GOOGLE_SEARCH_CACHE_TTL_SECONDS = 24 * 60 * 60
 const GOOGLE_PLACE_DETAILS_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
+const OPENAI_WEB_ENRICHMENT_CACHE_TTL_SECONDS = 60 * 60
 
 type QueryKind = 'restaurant' | 'activity' | 'date_vibe'
 
@@ -587,6 +589,23 @@ const rankedPlaceStringArraySchema = z.object({
   rankedPlaceIds: z.array(z.string().min(1)).max(MAX_GOOGLE_PLACES_RESULTS),
 })
 
+const aiWebSearchResultSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  summary: z.string().min(1).max(500),
+  category: z.enum(['restaurant', 'date_vibe', 'activity', 'event']),
+  sourceUrl: z.string().url(),
+  venue: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
+  dateTimeText: z.string().optional().nullable(),
+  priceText: z.string().optional().nullable(),
+  whyDateFriendly: z.string().optional().nullable(),
+})
+
+const aiWebSearchResponseSchema = z.object({
+  results: z.array(aiWebSearchResultSchema).max(MAX_GOOGLE_PLACES_RESULTS),
+})
+
 type RankedPlaceSelection = z.infer<typeof rankedPlaceSelectionSchema>
 
 type RankedPlaceResponse = {
@@ -680,6 +699,141 @@ const parseRankedPlaceIdsFromOutput = (
   }
 
   return { rankedPlaceIds: [] as RankedPlaceSelection[], summary: null }
+}
+
+const parseAiWebSearchResultsFromOutput = (output: unknown) => {
+  const rawCandidates = extractTextCandidatesFromResponseOutput(output)
+  const candidateStrings = rawCandidates.flatMap((candidate) => [
+    candidate.trim(),
+    candidate
+      .trim()
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```$/i, ''),
+  ])
+
+  for (const candidate of candidateStrings) {
+    const parsedJson = z
+      .string()
+      .transform((value) => JSON.parse(value))
+      .safeParse(candidate)
+
+    if (!parsedJson.success) {
+      continue
+    }
+
+    const parsedResults = aiWebSearchResponseSchema.safeParse(parsedJson.data)
+    if (parsedResults.success) {
+      return parsedResults.data.results
+    }
+  }
+
+  return [] as AiWebSearchResult[]
+}
+
+const getAreaLabelFromSearchState = (searchState: SearchState) => {
+  return (
+    searchState.locationLabel?.trim() ||
+    searchState.startingArea?.trim() ||
+    'the selected area'
+  )
+}
+
+const fetchAiWebSearchResults = async ({
+  searchState,
+  shouldFetchRestaurants,
+  shouldFetchDateVibes,
+  shouldFetchActivities,
+  shouldFetchEvents,
+}: {
+  searchState: SearchState
+  shouldFetchRestaurants: boolean
+  shouldFetchDateVibes: boolean
+  shouldFetchActivities: boolean
+  shouldFetchEvents: boolean
+}): Promise<AiWebSearchResult[]> => {
+  const requestedCategories = [
+    shouldFetchRestaurants ? 'restaurant' : null,
+    shouldFetchDateVibes ? 'date_vibe' : null,
+    shouldFetchActivities ? 'activity' : null,
+    shouldFetchEvents ? 'event' : null,
+  ].filter((category): category is AiWebSearchResult['category'] =>
+    Boolean(category),
+  )
+
+  if (requestedCategories.length === 0) return []
+
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    return []
+  }
+
+  const areaLabel = getAreaLabelFromSearchState(searchState)
+
+  try {
+    const results = await getOrSetApiCache<AiWebSearchResult[]>({
+      namespace: 'openai:web-search-results',
+      keyParts: {
+        version: 1,
+        areaLabel,
+        dateTime: searchState.dateTime,
+        distance: searchState.distance,
+        dateVibe: searchState.dateVibe,
+        food: searchState.food,
+        activityTypes: searchState.activityTypes,
+        activityBrowseCategory: searchState.activityBrowseCategory,
+        requestedCategories,
+      },
+      ttlSeconds: OPENAI_WEB_ENRICHMENT_CACHE_TTL_SECONDS,
+      fetchFresh: async () => {
+        const client = new OpenAI({ apiKey })
+        const response = await client.responses.create({
+          model: 'gpt-5.4-nano',
+          tools: [{ type: 'web_search_preview' }] as any,
+          input: `Use web search to find standalone AI web-search results for a date-planning app near ${areaLabel}.
+
+USER CONTEXT:
+- Date time: ${searchState.dateTime ?? 'Anytime'}
+- Distance: ${searchState.distance ?? '5'} miles
+- Date vibe: ${searchState.dateVibe ?? 'not specified'}
+- Food preference: ${searchState.food ?? 'not specified'}
+- Activity preference: ${searchState.activityTypes ?? searchState.activityBrowseCategory ?? 'not specified'}
+- Requested result categories: ${requestedCategories.join(', ')}
+
+GOAL:
+Find source-backed, non-generic date ideas that may not be well covered by Google Places or Ticketmaster. Prioritize unique date night activities, pop-ups, museum late nights, live jazz/comedy, special exhibits, markets, tastings, seasonal events, hidden cocktail bars, and distinctive restaurants or date stops.
+
+STRICT RULES:
+- Return only real results backed by a sourceUrl.
+- Do not invent facts.
+- Do not include stale event details.
+- If timing is uncertain, say so in dateTimeText or summary.
+- Keep summaries specific and practical for a date.
+- Generate stable ids using lowercase words from title plus category, prefixed with "ai-web-".
+- Include at most ${MAX_GOOGLE_PLACES_RESULTS} total results.
+- Return JSON only. No markdown. No code fences.
+
+JSON SHAPE:
+{"results":[{"id":"ai-web-example-event","title":"Result title","summary":"Specific source-backed detail.","category":"event","sourceUrl":"https://source.example","venue":"Venue name or null","location":"Area/address or null","dateTimeText":"Timing or null","priceText":"Price or null","whyDateFriendly":"Why this works for a date or null"}]}`,
+        })
+
+        return parseAiWebSearchResultsFromOutput(response.output)
+      },
+    })
+
+    console.info('[openai:web-search-results] normalized results', {
+      count: results.length,
+      results,
+    })
+
+    return results
+  } catch (error) {
+    logPlacesError({
+      label: 'standalone AI web search failed',
+      error,
+    })
+    return []
+  }
 }
 
 // Place types and signals that indicate a place is obviously inappropriate for dates
@@ -2065,71 +2219,83 @@ export const getDatePlan = createServerFn({ method: 'POST' })
               data.searchState.activityTypes.toLowerCase(),
             ))
 
-    const [restaurantsResult, dateVibesResult, activitiesResult, eventsResult] =
-      await Promise.allSettled([
-        shouldFetchRestaurants
-          ? fetchPlacesForQuery({
+    const [
+      restaurantsResult,
+      dateVibesResult,
+      activitiesResult,
+      eventsResult,
+      aiWebSearchResult,
+    ] = await Promise.allSettled([
+      shouldFetchRestaurants
+        ? fetchPlacesForQuery({
+            latitude: data.latitude,
+            longitude: data.longitude,
+            search: restaurantQuery,
+            queryKind: 'restaurant',
+            dateTime,
+            priceLevel,
+            distanceMiles: parsedDistance,
+            searchState: data.searchState,
+          })
+        : Promise.resolve([] as NearbyPlacesResponse),
+      shouldFetchDateVibes
+        ? fetchDateVibesNearby({
+            latitude: data.latitude,
+            longitude: data.longitude,
+            dateTime,
+            priceLevel,
+            distanceMiles: parsedDistance,
+            searchState: data.searchState,
+          })
+        : Promise.resolve([] as NearbyPlacesResponse),
+      shouldFetchActivities
+        ? activitySearchMode === 'browse'
+          ? // Use Nearby Search to discover date ideas
+            fetchActivitiesNearby({
               latitude: data.latitude,
               longitude: data.longitude,
-              search: restaurantQuery,
-              queryKind: 'restaurant',
               dateTime,
               priceLevel,
               distanceMiles: parsedDistance,
               searchState: data.searchState,
             })
-          : Promise.resolve([] as NearbyPlacesResponse),
-        shouldFetchDateVibes
-          ? fetchDateVibesNearby({
-              latitude: data.latitude,
-              longitude: data.longitude,
-              dateTime,
-              priceLevel,
-              distanceMiles: parsedDistance,
-              searchState: data.searchState,
-            })
-          : Promise.resolve([] as NearbyPlacesResponse),
-        shouldFetchActivities
-          ? activitySearchMode === 'browse'
-            ? // Use Nearby Search to discover date ideas
-              fetchActivitiesNearby({
-                latitude: data.latitude,
-                longitude: data.longitude,
-                dateTime,
-                priceLevel,
-                distanceMiles: parsedDistance,
-                searchState: data.searchState,
+          : // Use text search for specific activity types
+            (() => {
+              const activityQuery = formatGoogleQueryTextField({
+                promptType: 'activityTypes',
+                value: data.searchState.activityTypes,
               })
-            : // Use text search for specific activity types
-              (() => {
-                const activityQuery = formatGoogleQueryTextField({
-                  promptType: 'activityTypes',
-                  value: data.searchState.activityTypes,
-                })
-                return activityQuery.length > 0
-                  ? fetchPlacesForQuery({
-                      latitude: data.latitude,
-                      longitude: data.longitude,
-                      search: activityQuery,
-                      queryKind: 'activity',
-                      dateTime,
-                      priceLevel,
-                      distanceMiles: parsedDistance,
-                      searchState: data.searchState,
-                    })
-                  : Promise.resolve([] as NearbyPlacesResponse)
-              })()
-          : Promise.resolve([] as NearbyPlacesResponse),
-        shouldFetchEvents
-          ? fetchAndRankEvents({
-              latitude: data.latitude,
-              longitude: data.longitude,
-              distanceMiles: parsedDistance,
-              dateTime,
-              searchState: data.searchState,
-            })
-          : Promise.resolve([] as NearbyPlacesResponse),
-      ])
+              return activityQuery.length > 0
+                ? fetchPlacesForQuery({
+                    latitude: data.latitude,
+                    longitude: data.longitude,
+                    search: activityQuery,
+                    queryKind: 'activity',
+                    dateTime,
+                    priceLevel,
+                    distanceMiles: parsedDistance,
+                    searchState: data.searchState,
+                  })
+                : Promise.resolve([] as NearbyPlacesResponse)
+            })()
+        : Promise.resolve([] as NearbyPlacesResponse),
+      shouldFetchEvents
+        ? fetchAndRankEvents({
+            latitude: data.latitude,
+            longitude: data.longitude,
+            distanceMiles: parsedDistance,
+            dateTime,
+            searchState: data.searchState,
+          })
+        : Promise.resolve([] as NearbyPlacesResponse),
+      fetchAiWebSearchResults({
+        searchState: data.searchState,
+        shouldFetchRestaurants,
+        shouldFetchDateVibes,
+        shouldFetchActivities,
+        shouldFetchEvents,
+      }),
+    ])
 
     if (restaurantsResult.status === 'rejected') {
       logPlacesError({
@@ -2159,6 +2325,13 @@ export const getDatePlan = createServerFn({ method: 'POST' })
       })
     }
 
+    if (aiWebSearchResult.status === 'rejected') {
+      logPlacesError({
+        label: 'AI web search branch failed',
+        error: aiWebSearchResult.reason,
+      })
+    }
+
     const restaurants =
       restaurantsResult.status === 'fulfilled'
         ? restaurantsResult.value
@@ -2175,6 +2348,10 @@ export const getDatePlan = createServerFn({ method: 'POST' })
       eventsResult.status === 'fulfilled'
         ? eventsResult.value
         : ([] as NearbyPlacesResponse)
+    const aiWebSearchResults =
+      aiWebSearchResult.status === 'fulfilled'
+        ? aiWebSearchResult.value
+        : ([] as AiWebSearchResult[])
 
     logPlacesTiming({
       label: 'date plan final response',
@@ -2184,6 +2361,7 @@ export const getDatePlan = createServerFn({ method: 'POST' })
         dateVibesCount: dateVibes.length,
         activityCount: activities.length,
         eventCount: events.length,
+        aiWebSearchCount: aiWebSearchResults.length,
       },
     })
 
@@ -2192,6 +2370,7 @@ export const getDatePlan = createServerFn({ method: 'POST' })
       dateVibes,
       activities,
       events,
+      aiWebSearchResults,
     } as DatePlanResponse
 
     return response
