@@ -77,6 +77,9 @@ const GOOGLE_PLACE_DETAILS_FIELD_MASK =
 const MILES_TO_METERS = 1609.344
 const MAX_NEARBY_SEARCH_RADIUS_METERS = 50_000
 const MAX_GOOGLE_PLACES_RESULTS = 10
+const MIN_AI_WEB_SEARCH_RESULTS_PER_CATEGORY = 3
+const MAX_AI_WEB_SEARCH_RESULTS = MIN_AI_WEB_SEARCH_RESULTS_PER_CATEGORY * 4
+const AI_WEB_SEARCH_RETRY_ATTEMPTS = 2
 const MAX_CITY_AUTOCOMPLETE_RESULTS = 6
 const GOOGLE_SEARCH_CACHE_TTL_SECONDS = 24 * 60 * 60
 const GOOGLE_PLACE_DETAILS_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
@@ -603,7 +606,7 @@ const aiWebSearchResultSchema = z.object({
 })
 
 const aiWebSearchResponseSchema = z.object({
-  results: z.array(aiWebSearchResultSchema).max(MAX_GOOGLE_PLACES_RESULTS),
+  results: z.array(aiWebSearchResultSchema).max(MAX_AI_WEB_SEARCH_RESULTS),
 })
 
 type RankedPlaceSelection = z.infer<typeof rankedPlaceSelectionSchema>
@@ -611,6 +614,13 @@ type RankedPlaceSelection = z.infer<typeof rankedPlaceSelectionSchema>
 type RankedPlaceResponse = {
   rankedPlaceIds: RankedPlaceSelection[]
   summary: string | null
+}
+
+type AiWebSearchCategory = AiWebSearchResult['category']
+
+type AiWebSearchCategoryTarget = {
+  category: AiWebSearchCategory
+  count: number
 }
 
 const extractTextCandidatesFromResponseOutput = (output: unknown) => {
@@ -739,6 +749,208 @@ const getAreaLabelFromSearchState = (searchState: SearchState) => {
   )
 }
 
+const normalizeAiWebSearchText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+
+const normalizeAiWebSearchUrl = (value: string) =>
+  value.trim().toLowerCase().replace(/\/$/, '')
+
+const getAiWebSearchCategoryCounts = (
+  results: AiWebSearchResult[],
+  requestedCategories: AiWebSearchCategory[],
+) => {
+  const counts = new Map<AiWebSearchCategory, number>(
+    requestedCategories.map((category) => [category, 0]),
+  )
+
+  for (const result of results) {
+    const currentCount = counts.get(result.category)
+    if (currentCount === undefined) {
+      continue
+    }
+
+    counts.set(result.category, currentCount + 1)
+  }
+
+  return counts
+}
+
+const getMissingAiWebSearchCategoryTargets = (
+  results: AiWebSearchResult[],
+  requestedCategories: AiWebSearchCategory[],
+) => {
+  const counts = getAiWebSearchCategoryCounts(results, requestedCategories)
+
+  return requestedCategories.flatMap((category) => {
+    const missingCount =
+      MIN_AI_WEB_SEARCH_RESULTS_PER_CATEGORY - (counts.get(category) ?? 0)
+
+    return missingCount > 0 ? [{ category, count: missingCount }] : []
+  })
+}
+
+const mergeAiWebSearchResults = ({
+  existingResults,
+  newResults,
+  requestedCategories,
+}: {
+  existingResults: AiWebSearchResult[]
+  newResults: AiWebSearchResult[]
+  requestedCategories: AiWebSearchCategory[]
+}) => {
+  const requestedCategorySet = new Set(requestedCategories)
+  const categoryCounts = new Map<AiWebSearchCategory, number>(
+    requestedCategories.map((category) => [category, 0]),
+  )
+  const seenUrls = new Set<string>()
+  const seenTitlesByCategory = new Set<string>()
+  const mergedResults: AiWebSearchResult[] = []
+
+  for (const result of [...existingResults, ...newResults]) {
+    if (!requestedCategorySet.has(result.category)) {
+      continue
+    }
+
+    const categoryCount = categoryCounts.get(result.category) ?? 0
+    if (categoryCount >= MIN_AI_WEB_SEARCH_RESULTS_PER_CATEGORY) {
+      continue
+    }
+
+    const urlKey = normalizeAiWebSearchUrl(result.sourceUrl)
+    const titleKey = `${result.category}:${normalizeAiWebSearchText(result.title)}`
+    if (seenUrls.has(urlKey) || seenTitlesByCategory.has(titleKey)) {
+      continue
+    }
+
+    seenUrls.add(urlKey)
+    seenTitlesByCategory.add(titleKey)
+    categoryCounts.set(result.category, categoryCount + 1)
+    mergedResults.push(result)
+  }
+
+  return mergedResults
+}
+
+const formatAiWebSearchCategoryTargets = (
+  categoryTargets: AiWebSearchCategoryTarget[],
+) =>
+  categoryTargets
+    .map(
+      ({ category, count }) =>
+        `${category}: ${count} result${count === 1 ? '' : 's'}`,
+    )
+    .join(', ')
+
+const formatAiWebSearchExcludedResults = (results: AiWebSearchResult[]) => {
+  if (results.length === 0) {
+    return 'None yet.'
+  }
+
+  return results
+    .map(
+      (result) => `- ${result.title} (${result.category}) ${result.sourceUrl}`,
+    )
+    .join('\n')
+}
+
+const buildAiWebSearchPrompt = ({
+  areaLabel,
+  searchState,
+  categoryTargets,
+  existingResults,
+}: {
+  areaLabel: string
+  searchState: SearchState
+  categoryTargets: AiWebSearchCategoryTarget[]
+  existingResults: AiWebSearchResult[]
+}) => {
+  const requestedCategories = categoryTargets.map(({ category }) => category)
+  const totalTargetCount = categoryTargets.reduce(
+    (total, { count }) => total + count,
+    0,
+  )
+
+  return `Use web search to find standalone AI web-search results for a date-planning app near ${areaLabel}.
+
+USER CONTEXT:
+- Date time: ${searchState.dateTime ?? 'Anytime'}
+- Distance: ${searchState.distance ?? '5'} miles
+- Date vibe: ${searchState.dateVibe ?? 'not specified'}
+- Food preference: ${searchState.food ?? 'not specified'}
+- Activity preference: ${searchState.activityTypes ?? searchState.activityBrowseCategory ?? 'not specified'}
+- Requested result categories: ${requestedCategories.join(', ')}
+- Target results by category: ${formatAiWebSearchCategoryTargets(categoryTargets)}
+
+GOAL:
+Find source-backed, non-generic date ideas that may not be well covered by Google Places or Ticketmaster. Prioritize practical date plans people can actually do together: distinctive restaurants, bars, cafes, dessert shops, tasting rooms, scenic walks, viewpoints, parks, cozy neighborhood strolls, museum late nights, live jazz/comedy, special exhibits, markets, seasonal events, and short ambient stops.
+
+CATEGORY FIT:
+- "restaurant" results must be places or consumer-facing dining/drinking experiences where a couple can eat or drink and have a good time. Include restaurants, food halls, tasting menus, chef pop-ups, restaurant weeks, supper clubs, and public food markets with ready-to-eat options.
+- Exclude conferences, trade shows, expos, conventions, industry events, business/networking events, classes without an actual meal, vendor fairs, or food-related news where the user would not naturally sit, eat, drink, or linger on a date.
+- "date_vibe" results should be low-friction date stops that add atmosphere within a short time span. Include scenic viewpoints, waterfronts, gardens, parks, walkable streets, public art, cozy bookstores, record shops, dessert or coffee stops, rooftops, lounges, and other vibey places to stroll, sit, talk, or take in a view.
+- Do not make "date_vibe" solely dessert or pastry-focused unless that is clearly the best fit for the user's preferences.
+- "activity" results should be participatory or destination activities, not generic venue listings.
+- "event" results must be public date-friendly happenings with a current or upcoming schedule.
+
+TIME FIT:
+- The requested date time is "${searchState.dateTime ?? 'Anytime'}". If it is Morning, Afternoon, Evening, Late Night, or Now, only include a result when the source supports that it can reasonably be done during that time window.
+- For Now, prioritize places open now or events happening today/tonight; exclude results whose timing cannot be verified.
+- For Morning, Afternoon, Evening, or Late Night, exclude events or venues that clearly happen outside that window.
+- For Anytime, still exclude stale events and closed/ended limited-time experiences.
+- Put the verified timing or hours in dateTimeText. If timing is important but cannot be verified, do not include the result.
+
+EXISTING RESULTS TO EXCLUDE:
+${formatAiWebSearchExcludedResults(existingResults)}
+
+STRICT RULES:
+- Return only real results backed by a sourceUrl.
+- Do not invent facts.
+- Do not include stale event details.
+- Match every result to one of the requested categories only: ${requestedCategories.join(', ')}.
+- Return the target number of strong results for each requested category whenever enough source-backed, time-fit matches exist: ${formatAiWebSearchCategoryTargets(categoryTargets)}.
+- If fewer strong matches exist for a requested category, return fewer rather than inventing or stretching weak matches.
+- Do not return more than the target count for any requested category.
+- Do not repeat any title or sourceUrl listed in existing results to exclude.
+- Keep summaries specific and practical for a date.
+- Prefer fewer strong results over filling the list with weak or generic matches.
+- Generate stable ids using lowercase words from title plus category, prefixed with "ai-web-".
+- Include at most ${totalTargetCount} total results.
+- Return JSON only. No markdown. No code fences.
+
+JSON SHAPE:
+{"results":[{"id":"ai-web-example-event","title":"Result title","summary":"Specific source-backed detail.","category":"event","sourceUrl":"https://source.example","venue":"Venue name or null","location":"Area/address or null","dateTimeText":"Timing or null","priceText":"Price or null","whyDateFriendly":"Why this works for a date or null"}]}`
+}
+
+const fetchAiWebSearchAttempt = async ({
+  client,
+  areaLabel,
+  searchState,
+  categoryTargets,
+  existingResults,
+}: {
+  client: OpenAI
+  areaLabel: string
+  searchState: SearchState
+  categoryTargets: AiWebSearchCategoryTarget[]
+  existingResults: AiWebSearchResult[]
+}) => {
+  const response = await client.responses.create({
+    model: 'gpt-5.4-mini-2026-03-17',
+    tools: [{ type: 'web_search' }] as any,
+    input: buildAiWebSearchPrompt({
+      areaLabel,
+      searchState,
+      categoryTargets,
+      existingResults,
+    }),
+  })
+
+  return parseAiWebSearchResultsFromOutput(response.output)
+}
+
 const fetchAiWebSearchResults = async ({
   searchState,
   shouldFetchRestaurants,
@@ -774,7 +986,7 @@ const fetchAiWebSearchResults = async ({
     const results = await getOrSetApiCache<AiWebSearchResult[]>({
       namespace: 'openai:web-search-results',
       keyParts: {
-        version: 1,
+        version: 4,
         areaLabel,
         dateTime: searchState.dateTime,
         distance: searchState.distance,
@@ -787,37 +999,53 @@ const fetchAiWebSearchResults = async ({
       ttlSeconds: OPENAI_WEB_ENRICHMENT_CACHE_TTL_SECONDS,
       fetchFresh: async () => {
         const client = new OpenAI({ apiKey })
-        const response = await client.responses.create({
-          model: 'gpt-5.4-nano',
-          tools: [{ type: 'web_search_preview' }] as any,
-          input: `Use web search to find standalone AI web-search results for a date-planning app near ${areaLabel}.
+        let mergedResults: AiWebSearchResult[] = []
 
-USER CONTEXT:
-- Date time: ${searchState.dateTime ?? 'Anytime'}
-- Distance: ${searchState.distance ?? '5'} miles
-- Date vibe: ${searchState.dateVibe ?? 'not specified'}
-- Food preference: ${searchState.food ?? 'not specified'}
-- Activity preference: ${searchState.activityTypes ?? searchState.activityBrowseCategory ?? 'not specified'}
-- Requested result categories: ${requestedCategories.join(', ')}
+        for (
+          let attempt = 0;
+          attempt <= AI_WEB_SEARCH_RETRY_ATTEMPTS;
+          attempt++
+        ) {
+          const categoryTargets =
+            attempt === 0
+              ? requestedCategories.map((category) => ({
+                  category,
+                  count: MIN_AI_WEB_SEARCH_RESULTS_PER_CATEGORY,
+                }))
+              : getMissingAiWebSearchCategoryTargets(
+                  mergedResults,
+                  requestedCategories,
+                )
 
-GOAL:
-Find source-backed, non-generic date ideas that may not be well covered by Google Places or Ticketmaster. Prioritize unique date night activities, pop-ups, museum late nights, live jazz/comedy, special exhibits, markets, tastings, seasonal events, hidden cocktail bars, and distinctive restaurants or date stops.
+          if (categoryTargets.length === 0) {
+            break
+          }
 
-STRICT RULES:
-- Return only real results backed by a sourceUrl.
-- Do not invent facts.
-- Do not include stale event details.
-- If timing is uncertain, say so in dateTimeText or summary.
-- Keep summaries specific and practical for a date.
-- Generate stable ids using lowercase words from title plus category, prefixed with "ai-web-".
-- Include at most ${MAX_GOOGLE_PLACES_RESULTS} total results.
-- Return JSON only. No markdown. No code fences.
+          const attemptResults = await fetchAiWebSearchAttempt({
+            client,
+            areaLabel,
+            searchState,
+            categoryTargets,
+            existingResults: mergedResults,
+          })
 
-JSON SHAPE:
-{"results":[{"id":"ai-web-example-event","title":"Result title","summary":"Specific source-backed detail.","category":"event","sourceUrl":"https://source.example","venue":"Venue name or null","location":"Area/address or null","dateTimeText":"Timing or null","priceText":"Price or null","whyDateFriendly":"Why this works for a date or null"}]}`,
-        })
+          mergedResults = mergeAiWebSearchResults({
+            existingResults: mergedResults,
+            newResults: attemptResults,
+            requestedCategories,
+          })
 
-        return parseAiWebSearchResultsFromOutput(response.output)
+          if (
+            getMissingAiWebSearchCategoryTargets(
+              mergedResults,
+              requestedCategories,
+            ).length === 0
+          ) {
+            break
+          }
+        }
+
+        return mergedResults
       },
     })
 
