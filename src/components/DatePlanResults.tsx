@@ -8,6 +8,7 @@ import type {
 } from '#/types/index-route.types'
 import { PlaceImageCarousel } from '#/components/PlaceImageCarousel'
 import { clearLatestPlanStorage, getSharePresentation } from '#/lib/date-plan'
+import { safeHttpsUrl, safeProviderUrl } from '#/lib/plan-security'
 import type { ShareAttempt } from '#/lib/date-plan'
 
 const priceLevelLabels: Record<string, string> = {
@@ -190,10 +191,12 @@ export function DatePlanResults({
   }
 
   const handleStartOver = () => {
-    try {
-      clearLatestPlanStorage()
-    } catch {
-      // Ignore storage failures and still leave the plan view.
+    if (variant === 'local') {
+      try {
+        clearLatestPlanStorage()
+      } catch {
+        // Ignore storage failures and still leave the plan view.
+      }
     }
 
     navigate({ to: '/', search: { step: 1 } })
@@ -301,7 +304,15 @@ export function DatePlanResults({
   const dateVibeAiResult = getAiFromResult(dateVibeResult)
   const activityAiResult = getAiFromResult(activityResult)
   const eventAiResult = getAiFromResult(eventResult)
-  const eventLink = event?.websiteUri ?? event?.googleMapsUri
+  const restaurantMapsHref = safeProviderUrl(restaurant?.googleMapsUri)
+  const dateVibeMapsHref = safeProviderUrl(dateVibe?.googleMapsUri)
+  const activityMapsHref = safeProviderUrl(activity?.googleMapsUri)
+  const eventLink =
+    safeHttpsUrl(event?.websiteUri) ?? safeProviderUrl(event?.googleMapsUri)
+  const restaurantSourceHref = safeHttpsUrl(restaurantAiResult?.sourceUrl)
+  const dateVibeSourceHref = safeHttpsUrl(dateVibeAiResult?.sourceUrl)
+  const activitySourceHref = safeHttpsUrl(activityAiResult?.sourceUrl)
+  const eventSourceHref = safeHttpsUrl(eventAiResult?.sourceUrl)
   const areaLabel = getAreaLabel(datePlan)
   const restaurantMetadata = getMetadataText(restaurant)
   const dateVibeMetadata = getMetadataText(dateVibe)
@@ -624,9 +635,9 @@ export function DatePlanResults({
                               {restaurantAiResult.whyDateFriendly}
                             </p>
                           )}
-                          {restaurant?.googleMapsUri && (
+                          {restaurantMapsHref && (
                             <a
-                              href={restaurant.googleMapsUri}
+                              href={restaurantMapsHref}
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}
@@ -635,9 +646,9 @@ export function DatePlanResults({
                               Open in Google Maps ↗
                             </a>
                           )}
-                          {restaurantAiResult && (
+                          {restaurantSourceHref && (
                             <a
-                              href={restaurantAiResult.sourceUrl}
+                              href={restaurantSourceHref}
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}
@@ -780,9 +791,9 @@ export function DatePlanResults({
                               {dateVibeAiResult.whyDateFriendly}
                             </p>
                           )}
-                          {dateVibe?.googleMapsUri && (
+                          {dateVibeMapsHref && (
                             <a
-                              href={dateVibe.googleMapsUri}
+                              href={dateVibeMapsHref}
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}
@@ -791,9 +802,9 @@ export function DatePlanResults({
                               Open in Google Maps ↗
                             </a>
                           )}
-                          {dateVibeAiResult && (
+                          {dateVibeSourceHref && (
                             <a
-                              href={dateVibeAiResult.sourceUrl}
+                              href={dateVibeSourceHref}
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}
@@ -940,9 +951,9 @@ export function DatePlanResults({
                               View Event ↗
                             </a>
                           )}
-                          {eventAiResult && (
+                          {eventSourceHref && (
                             <a
-                              href={eventAiResult.sourceUrl}
+                              href={eventSourceHref}
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}
@@ -1088,9 +1099,9 @@ export function DatePlanResults({
                               {activityAiResult.whyDateFriendly}
                             </p>
                           )}
-                          {activity?.googleMapsUri && (
+                          {activityMapsHref && (
                             <a
-                              href={activity.googleMapsUri}
+                              href={activityMapsHref}
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}
@@ -1099,9 +1110,9 @@ export function DatePlanResults({
                               Open in Google Maps ↗
                             </a>
                           )}
-                          {activityAiResult && (
+                          {activitySourceHref && (
                             <a
-                              href={activityAiResult.sourceUrl}
+                              href={activitySourceHref}
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}

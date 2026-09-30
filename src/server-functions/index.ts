@@ -37,7 +37,9 @@ import {
   DATE_PLAN_NOTICE_MESSAGES,
   limitByActivityIdeaCount,
 } from '#/lib/date-plan'
+import { safeProviderUrl, sanitizePlanForStorage } from '#/lib/plan-security'
 import type { DatePlanNotice } from '#/types/index-route.types'
+import { persistShareablePlan } from './plan-persist'
 
 // Lean field mask for Nearby Search (New) and Text Search (New). Search is
 // used for candidate discovery; rich Atmosphere fields are fetched only for
@@ -2034,8 +2036,12 @@ export const getPhotoMedia = createServerFn({ method: 'GET' })
       throw new Error(`Google Photo Media failed: ${res.status} ${errorText}`)
     }
 
-    const mediaData = (await res.json()) as { photoUri: string }
-    return mediaData.photoUri
+    const mediaData = (await res.json()) as { photoUri?: string }
+    const photoUri = safeProviderUrl(mediaData.photoUri)
+    if (!photoUri) {
+      throw new Error('Google Photo Media returned an unexpected URI')
+    }
+    return photoUri
   })
 
 export const searchCities = createServerFn({ method: 'GET' })
@@ -2605,8 +2611,14 @@ export const getDatePlan = createServerFn({ method: 'POST' })
       activities,
       events,
       aiWebSearchResults,
+      searchState: data.searchState,
       notices,
     } as DatePlanResponse
+    const sanitized = sanitizePlanForStorage(response)
+    const share = await persistShareablePlan(sanitized)
 
-    return response
+    return {
+      ...sanitized,
+      share,
+    }
   })

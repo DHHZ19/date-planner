@@ -56,6 +56,12 @@ export type DatePlanNotice = {
   message: string
 }
 
+export type PlanShareStatus = {
+  planId: string | null
+  shareable: boolean
+  reason: 'ok' | 'missing_place' | 'missing_event' | 'store_unavailable'
+}
+
 export type DatePlanResponse = ValidateSerializableInput<
   Register,
   {
@@ -66,6 +72,7 @@ export type DatePlanResponse = ValidateSerializableInput<
     aiWebSearchResults: AiWebSearchResult[]
     searchState?: SearchState
     notices?: DatePlanNotice[]
+    share?: PlanShareStatus
   }
 >
 

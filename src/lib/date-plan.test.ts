@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ACTIVITY_IDEA_COUNT_OPTIONS } from '#/components/questions/question-config'
 import { activityIdeaCountSchema } from '#/schemas/index.schema'
@@ -11,7 +11,9 @@ import {
   evaluateShareGate,
   getSharePresentation,
   limitByActivityIdeaCount,
+  hasLatestPlanInStorage,
   parseStoredDatePlan,
+  readLatestPlanFromStorage,
 } from './date-plan'
 
 const ideaCounts: ActivityIdeaCount[] = ACTIVITY_IDEA_COUNT_OPTIONS.map(
@@ -109,7 +111,18 @@ describe('parseStoredDatePlan', () => {
           id: 'restaurant-1',
           displayName: { text: 'Night Noodle' },
           rating: 4.6,
-          photos: [{ name: 'photo-1' }],
+          googleMapsUri: 'javascript:alert(1)',
+          photos: [
+            {
+              name: 'places/abc/photos/photo-1',
+              authorAttributions: [
+                {
+                  htmlAttribution: '<img src=x onerror=alert(1)>',
+                  uri: 'javascript:alert(1)',
+                },
+              ],
+            },
+          ],
         },
       ],
       dateVibes: [],
@@ -129,7 +142,15 @@ describe('parseStoredDatePlan', () => {
 
     const parsed = parseStoredDatePlan(stored)
     expect(parsed?.restaurants[0]?.displayName?.text).toBe('Night Noodle')
-    expect(parsed?.restaurants[0]?.photos?.[0]?.name).toBe('photo-1')
+    expect(parsed?.restaurants[0]?.photos?.[0]?.name).toBe(
+      'places/abc/photos/photo-1',
+    )
+    expect(parsed?.restaurants[0]?.googleMapsUri).toBeNull()
+    const attribution = parsed?.restaurants
+      .at(0)
+      ?.photos?.at(0)
+      ?.authorAttributions?.at(0) as { htmlAttribution?: string } | undefined
+    expect(attribution?.htmlAttribution).toBeUndefined()
     expect(parsed?.notices?.[0]?.code).toBe('events_widened')
     expect(parsed?.searchState?.step).toBe(2)
   })
@@ -137,6 +158,22 @@ describe('parseStoredDatePlan', () => {
   it('rejects a corrupt payload', () => {
     expect(parseStoredDatePlan({ restaurants: 'nope' })).toBeNull()
     expect(parseStoredDatePlan(null)).toBeNull()
+  })
+})
+
+describe('readLatestPlanFromStorage', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('returns null when localStorage throws SecurityError', () => {
+    const getItem = vi.fn(() => {
+      throw new DOMException('The operation is insecure.', 'SecurityError')
+    })
+    vi.stubGlobal('localStorage', { getItem })
+
+    expect(readLatestPlanFromStorage()).toBeNull()
+    expect(hasLatestPlanInStorage()).toBe(false)
   })
 })
 

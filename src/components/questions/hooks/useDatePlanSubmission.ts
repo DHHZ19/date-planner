@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 
 import { getDatePlan, resolveAreaLabel } from '#/server-functions/index.ts'
-import { savePlan } from '#/server-functions/plans'
 import { writeLatestPlanToStorage } from '#/lib/date-plan'
 import type { ShareAttempt } from '#/lib/date-plan'
 import type {
@@ -88,32 +87,27 @@ export function useDatePlanSubmission() {
           searchState: searchWithAreaLabel,
         },
       })) as DatePlanResponse
+      const { share, ...planWithoutShare } = datePlanResponse
       const datePlanWithSearchState = {
-        ...datePlanResponse,
-        searchState: searchWithAreaLabel,
+        ...planWithoutShare,
+        searchState: planWithoutShare.searchState ?? searchWithAreaLabel,
       } satisfies DatePlanResponse
 
       setRestaurants(datePlanWithSearchState.restaurants as NearbyPlace[])
       setDateVibes(datePlanWithSearchState.dateVibes as NearbyPlace[])
       setActivities(datePlanWithSearchState.activities as NearbyPlace[])
 
-      let shareAttempt: ShareAttempt = {
-        reason: 'save_failed',
-        planId: null,
-      }
-
-      try {
-        const saved = await savePlan({ data: datePlanWithSearchState })
-        if (saved.planId) {
-          shareAttempt = { reason: 'shared', planId: saved.planId }
-        } else if (saved.reason === 'ok') {
-          shareAttempt = { reason: 'save_failed', planId: null }
-        } else {
-          shareAttempt = { reason: saved.reason, planId: null }
-        }
-      } catch (error) {
-        console.warn('Unable to save shareable date plan.', error)
-      }
+      const shareAttempt: ShareAttempt = share?.planId
+        ? { reason: 'shared', planId: share.planId }
+        : {
+            reason:
+              share?.reason === 'missing_place' ||
+              share?.reason === 'missing_event' ||
+              share?.reason === 'store_unavailable'
+                ? share.reason
+                : 'save_failed',
+            planId: null,
+          }
 
       try {
         writeLatestPlanToStorage(datePlanWithSearchState, shareAttempt)

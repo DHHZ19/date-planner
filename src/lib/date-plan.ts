@@ -1,5 +1,6 @@
 import z from 'zod'
 import { searchStateSchema } from '#/schemas/index.schema'
+import { sanitizePlanForStorage } from '#/lib/plan-security'
 import type {
   DatePlanNoticeCode,
   DatePlanResponse,
@@ -144,7 +145,7 @@ export const parseStoredDatePlan = (
     return null
   }
 
-  return parsed.data as DatePlanResponse
+  return sanitizePlanForStorage(parsed.data as DatePlanResponse)
 }
 
 export const parseShareAttempt = (value: unknown): ShareAttempt | null => {
@@ -195,13 +196,31 @@ export const getSharePresentation = (
   }
 }
 
+export const hasLatestPlanInStorage = () => {
+  if (typeof localStorage === 'undefined') return false
+
+  try {
+    return localStorage.getItem(LATEST_PLAN_STORAGE_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
 export const readLatestPlanFromStorage = (): {
   plan: DatePlanResponse
   attempt: ShareAttempt | null
 } | null => {
   if (typeof localStorage === 'undefined') return null
 
-  const cached = localStorage.getItem(LATEST_PLAN_STORAGE_KEY)
+  let cached: string | null
+  let attemptRaw: string | null
+  try {
+    cached = localStorage.getItem(LATEST_PLAN_STORAGE_KEY)
+    attemptRaw = localStorage.getItem(SHARE_ATTEMPT_STORAGE_KEY)
+  } catch {
+    return null
+  }
+
   if (!cached) return null
 
   let parsedJson: unknown
@@ -214,11 +233,7 @@ export const readLatestPlanFromStorage = (): {
   const plan = parseStoredDatePlan(parsedJson)
   if (!plan) return null
 
-  const attempt = parseShareAttempt(
-    localStorage.getItem(SHARE_ATTEMPT_STORAGE_KEY),
-  )
-
-  return { plan, attempt }
+  return { plan, attempt: parseShareAttempt(attemptRaw) }
 }
 
 export const writeLatestPlanToStorage = (

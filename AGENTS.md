@@ -213,7 +213,7 @@ Important environment variables:
 
 ## Docker And Redis
 
-Redis is used as a server-side cache for external provider API responses and as the store for shareable date plans (`plan:{id}`, about 30 days). The browser must never connect to Redis or receive Redis credentials. Plans are not written when Redis is unavailable, and `/results` keeps the same-browser copy.
+Redis is used as a server-side cache for external provider API responses and as the store for shareable date plans (`plan:{id}`, about 30 days). The browser must never connect to Redis or receive Redis credentials. Plans are written only from the server-produced `getDatePlan` result after HTML photo credits are removed and links and images are limited to safe URLs. Plans are not written when Redis is unavailable, and `/results` keeps the same-browser copy.
 
 Agent-safe Redis command that prevents Docker Compose from reading `.env`:
 
