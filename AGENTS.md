@@ -87,7 +87,6 @@ bash .opencode/post-agent-hook.sh
 ### Core Components
 
 1. **Routes (`src/routes/`)**
-
    - File-based routes managed by TanStack Router.
    - `src/routes/__root.tsx` defines the root shell.
    - `src/routes/index.tsx` owns the main question flow and search validation.
@@ -95,12 +94,10 @@ bash .opencode/post-agent-hook.sh
    - `src/routeTree.gen.ts` is generated and must not be edited manually.
 
 2. **Router Wiring (`src/router.tsx`)**
-
    - Creates the TanStack Router instance.
    - Integrates the generated route tree.
 
 3. **Question Flow (`src/components/questions/`)**
-
    - `QuestionForm.tsx` coordinates the multi-step flow.
    - `QuestionFieldRenderer.tsx` maps question config to field components.
    - `question-config.ts` defines question metadata and options.
@@ -108,22 +105,18 @@ bash .opencode/post-agent-hook.sh
    - `fields/` contains individual input components.
 
 4. **Server Functions (`src/server-functions/`)**
-
    - `index.ts` contains provider orchestration, Google Places calls, and optional OpenAI reranking.
    - `ticketmaster.ts` contains Ticketmaster integration.
    - `api-cache.ts` contains Redis cache helpers for provider responses.
 
 5. **Schemas And Types (`src/schemas/`, `src/types/`)**
-
    - Zod schemas validate route/search state and server-function inputs.
    - `src/types/index-route.types.ts` contains shared route-related types.
 
 6. **Constants (`src/constants/`)**
-
    - Suggestion lists and activity group definitions used by the question flow and provider logic.
 
 7. **Styling (`src/styles.css`, `STYLE_GUIDE.md`, `TAILWIND_STYLE_REFERENCE.md`)**
-
    - Global Tailwind and CSS custom properties live in `src/styles.css`.
    - Design-system guidance lives in `STYLE_GUIDE.md`.
    - Pre-approved Tailwind patterns live in `TAILWIND_STYLE_REFERENCE.md`.
@@ -185,7 +178,7 @@ For date-time options specifically, `dateTimeSchema` currently allows `Morning |
 ### Ticketmaster
 
 - Ticketmaster support is optional and depends on `TICKETMASTER_API_KEY`.
-- Event behavior should degrade gracefully when the key is absent.
+- When the key is absent, event search returns an unavailable status and the plan explains that live events could not be included. A share link is not minted without at least one event.
 
 ### OpenAI
 
@@ -204,22 +197,23 @@ Agents must not run it.
 
 Important environment variables:
 
-| Variable | Purpose |
-| --- | --- |
-| `GOOGLE_PLACES_API_KEY` | Required for Google Places results |
-| `TICKETMASTER_API_KEY` | Enables event results |
-| `OPENAI_API_KEY` | Enables AI reranking; app falls back if missing |
-| `REDIS_URL` | Enables Redis-backed API response caching |
-| `API_CACHE_ENABLED` | Enables or disables cache behavior |
-| `API_CACHE_BYPASS` | Skips cache reads and writes fresh responses back |
-| `API_CACHE_PREFIX` | Prefix for cache keys |
-| `API_CACHE_DEFAULT_TTL_SECONDS` | Default cache TTL |
+| Variable                        | Purpose                                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------- |
+| `GOOGLE_PLACES_API_KEY`         | Required for Google Places results                                                 |
+| `TICKETMASTER_API_KEY`          | Enables event results                                                              |
+| `OPENAI_API_KEY`                | Enables AI reranking; app falls back if missing                                    |
+| `REDIS_URL`                     | Enables Redis-backed API response caching and shareable plan storage (`plan:{id}`) |
+| `API_CACHE_ENABLED`             | Enables or disables provider-cache behavior. Does not disable plan storage         |
+| `API_CACHE_BYPASS`              | Skips cache reads and writes fresh responses back                                  |
+| `API_CACHE_PREFIX`              | Prefix for provider cache keys. Plan keys are not included                         |
+| `API_CACHE_DEFAULT_TTL_SECONDS` | Default provider cache TTL                                                         |
+| `PLAN_TTL_SECONDS`              | Shareable plan TTL. Defaults to 30 days (`2592000`)                                |
 
 `.env` is 1Password-generated and manual edits are overwritten. Never commit `.env`, `.env.e2e`, API keys, Redis credentials, or other secrets.
 
 ## Docker And Redis
 
-Redis is used as a server-side cache for external provider API responses. The browser must never connect to Redis or receive Redis credentials.
+Redis is used as a server-side cache for external provider API responses and as the store for shareable date plans (`plan:{id}`, about 30 days). The browser must never connect to Redis or receive Redis credentials. Plans are not written when Redis is unavailable, and `/results` keeps the same-browser copy.
 
 Agent-safe Redis command that prevents Docker Compose from reading `.env`:
 

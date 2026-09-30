@@ -74,9 +74,9 @@ const logApiCache = (
   console.info(`[api-cache] ${event}`, { namespace })
 }
 
-const getRedisClient = async () => {
+export const getRedisClient = async () => {
   const redisUrl = process.env.REDIS_URL
-  if (!redisUrl || !isApiCacheEnabled()) return null
+  if (!redisUrl) return null
 
   if (!redisClientPromise) {
     const client = createClient({ url: redisUrl })

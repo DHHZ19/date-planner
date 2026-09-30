@@ -26,7 +26,18 @@ import {
 import OpenAI from 'openai'
 
 import { getOrSetApiCache } from './api-cache'
+import {
+  getEventSearchKeyword,
+  resolveDatePlanBranches,
+} from './date-plan-branches'
+import { selectPlacesWithFilterFallback } from './place-filters'
+import type { RelaxedPlaceFilter } from './place-filters'
 import { fetchTicketmasterEvents } from './ticketmaster'
+import {
+  DATE_PLAN_NOTICE_MESSAGES,
+  limitByActivityIdeaCount,
+} from '#/lib/date-plan'
+import type { DatePlanNotice } from '#/types/index-route.types'
 
 // Lean field mask for Nearby Search (New) and Text Search (New). Search is
 // used for candidate discovery; rich Atmosphere fields are fetched only for
@@ -167,124 +178,15 @@ const logPlacesError = ({
   console.error(`[places] ${label}`, error)
 }
 
-/**
- * Time ranges (24-hour) used to determine if a place is open during a given
- * date-time slot. We check whether the place's opening hours overlap with the
- * target window on the current day of the week.
- */
-const TIME_RANGES: Record<
-  Exclude<DateTimeOption, 'Now' | 'Anytime'>,
-  { startHour: number; endHour: number }
-> = {
-  Morning: { startHour: 6, endHour: 12 },
-  Afternoon: { startHour: 12, endHour: 17 },
-  Evening: { startHour: 17, endHour: 22 },
-  'Late Night': { startHour: 22, endHour: 26 }, // 26 = 2 AM next day
+type PlaceQueryResult = {
+  places: NearbyPlacesResponse
+  relaxedFilters: RelaxedPlaceFilter[]
 }
 
-/**
- * Attempt to determine whether `place` is open during the given hour range by
- * inspecting `currentOpeningHours.periods`. Each period has an `open` and an
- * optional `close` point with `{ day, hour, minute }`.
- *
- * Returns `true` if any period overlaps with the target window, `false` if no
- * period overlaps, or `null` if structured period data is unavailable (caller
- * should fall back to string heuristic).
- */
-const isOpenDuringHourRange = (
-  place: NearbyPlace,
-  startHour: number,
-  endHour: number,
-): boolean | null => {
-  const periods = place.currentOpeningHours?.periods
-  if (!periods || periods.length === 0) return null
-
-  const todayDow = new Date().getDay() // 0 = Sun
-
-  for (const period of periods) {
-    const open = period.open
-    if (!open || open.day !== todayDow) continue
-
-    const openHour = open.hour ?? 0
-    // If there is no close point, the place is open 24 hours
-    const close = period.close
-    let closeHour = close ? (close.hour ?? 0) : 24
-    // Handle overnight spans (close hour on the next day)
-    if (closeHour <= openHour) closeHour += 24
-
-    // Check overlap: place open [openHour, closeHour) vs target [startHour, endHour)
-    if (openHour < endHour && closeHour > startHour) {
-      return true
-    }
-  }
-
-  return false
-}
-
-/**
- * Fallback: check weekday description strings for AM/PM keywords.
- */
-const getWeekdayDescription = (place: NearbyPlace) => {
-  const descriptions = place.currentOpeningHours?.weekdayDescriptions ?? []
-  if (descriptions.length === 0) return ''
-
-  const mondayFirstIndex = (new Date().getDay() + 6) % 7
-  return descriptions[mondayFirstIndex] ?? ''
-}
-
-const isOpenDuringRangeFallback = (
-  place: NearbyPlace,
-  range: { startHour: number; endHour: number },
-): boolean => {
-  const desc = getWeekdayDescription(place)
-  if (desc.length === 0) return true // no data – include rather than exclude
-
-  if (range.startHour < 12) return desc.includes('AM')
-  return desc.includes('PM')
-}
-
-const isOpenNow = (place: NearbyPlace) => {
-  return place.currentOpeningHours?.openNow === true
-}
-
-const isPlaceOpenDuringSlot = (
-  place: NearbyPlace,
-  range: { startHour: number; endHour: number },
-): boolean => {
-  const structured = isOpenDuringHourRange(
-    place,
-    range.startHour,
-    range.endHour,
-  )
-  if (structured !== null) return structured
-  return isOpenDuringRangeFallback(place, range)
-}
-
-const filterPlacesByDateTime = (
-  places: NearbyPlace[],
-  dateTime: DateTimeOption,
-): NearbyPlace[] => {
-  if (dateTime === 'Anytime') return places
-  if (dateTime === 'Now') return places.filter((place) => isOpenNow(place))
-
-  const range = TIME_RANGES[dateTime]
-  return places.filter((place) => isPlaceOpenDuringSlot(place, range))
-}
-
-const filterPlacesByPriceLevel = (
-  places: NearbyPlace[],
-  priceLevel?: z.infer<typeof priceLevelArraySchema>,
-) => {
-  return places.filter((place) => {
-    if (!priceLevel?.length) return true
-    if (!place.priceLevel) return true
-
-    const parsedPriceLevel = priceLevelSchema.safeParse(place.priceLevel)
-    if (!parsedPriceLevel.success) return false
-
-    return priceLevel.includes(parsedPriceLevel.data)
-  })
-}
+const emptyPlaceQuery = (): PlaceQueryResult => ({
+  places: [] as NearbyPlacesResponse,
+  relaxedFilters: [],
+})
 
 // Place types that belong to the restaurant/food category and must never
 // appear in the activities list. Bars, breweries, and similar drinking
@@ -350,16 +252,6 @@ const filterFoodPlacesFromActivities = (places: NearbyPlace[]) => {
     const primaryType = place.primaryType
     if (!primaryType) return true
     return !FOOD_PLACE_TYPE_BLOCKLIST.has(primaryType)
-  })
-}
-
-const filterPlacesByRating = (places: NearbyPlace[]) => {
-  return places.filter((place) => {
-    if (place.rating && place.userRatingCount) {
-      return place.rating >= 3.5 && place.userRatingCount >= 20
-    }
-
-    return true
   })
 }
 
@@ -1664,14 +1556,13 @@ const fetchPlacesForQuery = async ({
     metadata: { resultCount: places.length },
   })
 
-  const validDateTimePlaces = filterPlacesByDateTime(places, dateTime)
-
-  const priceFilteredPlaces = filterPlacesByPriceLevel(
-    validDateTimePlaces,
-    priceLevel,
-  )
-
-  const ratingFilteredPlaces = filterPlacesByRating(priceFilteredPlaces)
+  const { places: ratingFilteredPlaces, relaxedFilters } =
+    selectPlacesWithFilterFallback({
+      places,
+      dateTime,
+      priceLevel,
+      label: `${queryKind} text search`,
+    })
 
   const prescoredPlaces = preScoreAndSortPlaces(
     ratingFilteredPlaces,
@@ -1709,7 +1600,10 @@ const fetchPlacesForQuery = async ({
     },
   })
 
-  return refinedPlaces as NearbyPlacesResponse
+  return {
+    places: refinedPlaces as NearbyPlacesResponse,
+    relaxedFilters,
+  }
 }
 
 // Fetch activities using Google Places Nearby Search (New)
@@ -1815,23 +1709,21 @@ const fetchActivitiesNearby = async ({
 
   const nonFoodPlaces = filterFoodPlacesFromActivities(places)
 
-  const validDateTimePlaces = filterPlacesByDateTime(nonFoodPlaces, dateTime)
-
-  const priceFilteredPlaces = filterPlacesByPriceLevel(
-    validDateTimePlaces,
-    priceLevel,
-  )
-
-  const ratingFilteredPlaces = filterPlacesByRating(priceFilteredPlaces)
+  const { places: ratingFilteredPlaces, relaxedFilters } =
+    selectPlacesWithFilterFallback({
+      places: nonFoodPlaces,
+      dateTime,
+      priceLevel,
+      label: 'activity nearby',
+    })
 
   logPlacesTiming({
     label: 'activity nearby filters',
     startedAt: searchStartedAt,
     metadata: {
       nonFoodCount: nonFoodPlaces.length,
-      validDateTimeCount: validDateTimePlaces.length,
-      priceFilteredCount: priceFilteredPlaces.length,
       ratingFilteredCount: ratingFilteredPlaces.length,
+      relaxedFilters: relaxedFilters.join(',') || 'none',
     },
   })
 
@@ -1865,7 +1757,10 @@ const fetchActivitiesNearby = async ({
   })
 
   if (enrichedPlaces.length === 0) {
-    return [] as NearbyPlacesResponse
+    return {
+      places: [] as NearbyPlacesResponse,
+      relaxedFilters,
+    }
   }
 
   const refinedPlaces = await refinePlacesWithAI({
@@ -1883,7 +1778,10 @@ const fetchActivitiesNearby = async ({
     },
   })
 
-  return refinedPlaces as NearbyPlacesResponse
+  return {
+    places: refinedPlaces as NearbyPlacesResponse,
+    relaxedFilters,
+  }
 }
 
 const fetchDateVibesNearby = async ({
@@ -1968,12 +1866,13 @@ const fetchDateVibesNearby = async ({
     metadata: { resultCount: places.length },
   })
 
-  const validDateTimePlaces = filterPlacesByDateTime(places, dateTime)
-  const priceFilteredPlaces = filterPlacesByPriceLevel(
-    validDateTimePlaces,
-    priceLevel,
-  )
-  const ratingFilteredPlaces = filterPlacesByRating(priceFilteredPlaces)
+  const { places: ratingFilteredPlaces, relaxedFilters } =
+    selectPlacesWithFilterFallback({
+      places,
+      dateTime,
+      priceLevel,
+      label: 'date vibes nearby',
+    })
   const prescoredPlaces = preScoreAndSortPlaces(
     ratingFilteredPlaces,
     priceLevel,
@@ -2015,7 +1914,10 @@ const fetchDateVibesNearby = async ({
     },
   })
 
-  return refinedPlaces as NearbyPlacesResponse
+  return {
+    places: refinedPlaces as NearbyPlacesResponse,
+    relaxedFilters,
+  }
 }
 
 // Enrich top candidates with full Place Details for AI refinement
@@ -2316,7 +2218,7 @@ export const getPlaces = createServerFn({ method: 'POST' })
         .parse(data),
   )
   .handler(async ({ data }) => {
-    const places = await fetchPlacesForQuery({
+    const { places } = await fetchPlacesForQuery({
       latitude: data.latitude,
       longitude: data.longitude,
       search: data.search,
@@ -2352,15 +2254,19 @@ const fetchAndRankEvents = async ({
   dateTime: DateTimeOption
   searchState: SearchState
 }) => {
-  const ticketmasterPlaces = await fetchTicketmasterEvents({
+  const ticketmasterResult = await fetchTicketmasterEvents({
     latitude,
     longitude,
     radiusMiles: distanceMiles,
     dateTime,
+    keyword: getEventSearchKeyword(searchState),
   })
 
-  if (ticketmasterPlaces.length === 0) {
-    return [] as NearbyPlacesResponse
+  if (ticketmasterResult.events.length === 0) {
+    return {
+      events: [] as NearbyPlacesResponse,
+      status: ticketmasterResult.status,
+    }
   }
 
   const settings = buildPreferenceSettingsForQuery({
@@ -2369,12 +2275,23 @@ const fetchAndRankEvents = async ({
   })
 
   const refinedEvents = await refinePlacesWithAI({
-    places: ticketmasterPlaces,
+    places: ticketmasterResult.events,
     search: 'live events, concerts, shows, or games',
     settings,
   })
 
-  return refinedEvents as NearbyPlacesResponse
+  if (refinedEvents.length === 0) {
+    console.info('[ticketmaster] refinement removed every event')
+    return {
+      events: [] as NearbyPlacesResponse,
+      status: 'empty' as const,
+    }
+  }
+
+  return {
+    events: refinedEvents as NearbyPlacesResponse,
+    status: ticketmasterResult.status,
+  }
 }
 
 export const getDatePlan = createServerFn({ method: 'POST' })
@@ -2410,42 +2327,22 @@ export const getDatePlan = createServerFn({ method: 'POST' })
       value: data.searchState.food,
     })
 
-    const parsedPlanTypes =
-      data.searchState.planTypes?.split(',').filter(Boolean) || []
+    const {
+      shouldFetchRestaurants,
+      shouldFetchDateVibes,
+      shouldFetchActivities,
+      shouldFetchEvents,
+    } = resolveDatePlanBranches(data.searchState)
 
-    const isQuickMode = data.searchState.mode === 'quick'
-
-    // Determine what to fetch based on mode and planTypes
-    const shouldFetchRestaurants =
-      isQuickMode && parsedPlanTypes.length > 0
-        ? parsedPlanTypes.includes('restaurant')
-        : restaurantQuery.length > 0 || isQuickMode
-
-    const shouldFetchDateVibes =
-      isQuickMode && parsedPlanTypes.length > 0
-        ? parsedPlanTypes.includes('date_vibe')
-        : false
-
-    const shouldFetchActivities =
-      isQuickMode && parsedPlanTypes.length > 0
-        ? parsedPlanTypes.includes('activity')
-        : true // Default behavior for guided mode
-
-    // Determine activity search mode
     const activitySearchMode = data.searchState.activitySearchMode ?? 'browse'
 
-    // Determine if we should fetch Ticketmaster events
-    const shouldFetchEvents =
-      isQuickMode && parsedPlanTypes.length > 0
-        ? parsedPlanTypes.includes('event')
-        : (activitySearchMode === 'browse' &&
-            (data.searchState.activityBrowseCategory === 'nightlife_music' ||
-              data.searchState.activityBrowseCategory === 'arts_culture')) ||
-          (activitySearchMode === 'specific' &&
-            !!data.searchState.activityTypes &&
-            /concert|show|sport|game|comedy|live|music|theat/i.test(
-              data.searchState.activityTypes.toLowerCase(),
-            ))
+    console.info('[places] date plan branches', {
+      mode: data.searchState.mode ?? 'guided',
+      shouldFetchRestaurants,
+      shouldFetchDateVibes,
+      shouldFetchActivities,
+      shouldFetchEvents,
+    })
 
     const [
       restaurantsResult,
@@ -2465,7 +2362,7 @@ export const getDatePlan = createServerFn({ method: 'POST' })
             distanceMiles: parsedDistance,
             searchState: data.searchState,
           })
-        : Promise.resolve([] as NearbyPlacesResponse),
+        : Promise.resolve(emptyPlaceQuery()),
       shouldFetchDateVibes
         ? fetchDateVibesNearby({
             latitude: data.latitude,
@@ -2475,7 +2372,7 @@ export const getDatePlan = createServerFn({ method: 'POST' })
             distanceMiles: parsedDistance,
             searchState: data.searchState,
           })
-        : Promise.resolve([] as NearbyPlacesResponse),
+        : Promise.resolve(emptyPlaceQuery()),
       shouldFetchActivities
         ? activitySearchMode === 'browse'
           ? // Use Nearby Search to discover date ideas
@@ -2504,9 +2401,9 @@ export const getDatePlan = createServerFn({ method: 'POST' })
                     distanceMiles: parsedDistance,
                     searchState: data.searchState,
                   })
-                : Promise.resolve([] as NearbyPlacesResponse)
+                : Promise.resolve(emptyPlaceQuery())
             })()
-        : Promise.resolve([] as NearbyPlacesResponse),
+        : Promise.resolve(emptyPlaceQuery()),
       shouldFetchEvents
         ? fetchAndRankEvents({
             latitude: data.latitude,
@@ -2515,7 +2412,10 @@ export const getDatePlan = createServerFn({ method: 'POST' })
             dateTime,
             searchState: data.searchState,
           })
-        : Promise.resolve([] as NearbyPlacesResponse),
+        : Promise.resolve({
+            events: [] as NearbyPlacesResponse,
+            status: 'skipped' as const,
+          }),
       fetchAiWebSearchResults({
         searchState: data.searchState,
         shouldFetchRestaurants,
@@ -2562,24 +2462,129 @@ export const getDatePlan = createServerFn({ method: 'POST' })
 
     const restaurants =
       restaurantsResult.status === 'fulfilled'
-        ? restaurantsResult.value
+        ? restaurantsResult.value.places
         : ([] as NearbyPlacesResponse)
     const dateVibes =
       dateVibesResult.status === 'fulfilled'
-        ? dateVibesResult.value
+        ? dateVibesResult.value.places
         : ([] as NearbyPlacesResponse)
-    const activities =
+    const fetchedActivities =
       activitiesResult.status === 'fulfilled'
-        ? activitiesResult.value
+        ? activitiesResult.value.places
         : ([] as NearbyPlacesResponse)
+    const activities = limitByActivityIdeaCount(
+      fetchedActivities,
+      data.searchState.activityIdeaCount,
+    )
     const events =
       eventsResult.status === 'fulfilled'
-        ? eventsResult.value
+        ? eventsResult.value.events
         : ([] as NearbyPlacesResponse)
+    const eventStatus =
+      eventsResult.status === 'fulfilled' ? eventsResult.value.status : 'error'
     const aiWebSearchResults =
       aiWebSearchResult.status === 'fulfilled'
         ? aiWebSearchResult.value
         : ([] as AiWebSearchResult[])
+
+    if (fetchedActivities.length !== activities.length) {
+      console.info('[places] activity ideas limited by activityIdeaCount', {
+        activityIdeaCount: data.searchState.activityIdeaCount,
+        before: fetchedActivities.length,
+        after: activities.length,
+      })
+    }
+
+    const logEmptyBranch = (
+      label: string,
+      shouldFetch: boolean,
+      count: number,
+      status: 'fulfilled' | 'rejected',
+    ) => {
+      if (shouldFetch && status === 'fulfilled' && count === 0) {
+        console.info(`[places] ${label} branch returned no results`)
+      }
+    }
+
+    logEmptyBranch(
+      'restaurant',
+      shouldFetchRestaurants,
+      restaurants.length,
+      restaurantsResult.status,
+    )
+    logEmptyBranch(
+      'date vibes',
+      shouldFetchDateVibes,
+      dateVibes.length,
+      dateVibesResult.status,
+    )
+    logEmptyBranch(
+      'activity',
+      shouldFetchActivities,
+      activities.length,
+      activitiesResult.status,
+    )
+
+    const notices: DatePlanNotice[] = []
+    const relaxedFilters = new Set<RelaxedPlaceFilter>([
+      ...(restaurantsResult.status === 'fulfilled'
+        ? restaurantsResult.value.relaxedFilters
+        : []),
+      ...(dateVibesResult.status === 'fulfilled'
+        ? dateVibesResult.value.relaxedFilters
+        : []),
+      ...(activitiesResult.status === 'fulfilled'
+        ? activitiesResult.value.relaxedFilters
+        : []),
+    ])
+
+    if (relaxedFilters.size > 0) {
+      notices.push({
+        code: 'filters_relaxed',
+        message: DATE_PLAN_NOTICE_MESSAGES.filters_relaxed,
+      })
+    }
+
+    const failedBranches = [
+      restaurantsResult.status === 'rejected' ? 'restaurants' : null,
+      dateVibesResult.status === 'rejected' ? 'date vibes' : null,
+      activitiesResult.status === 'rejected' ? 'activities' : null,
+      aiWebSearchResult.status === 'rejected' ? 'web search' : null,
+    ].filter((branch): branch is string => Boolean(branch))
+
+    if (failedBranches.length > 0) {
+      notices.push({
+        code: 'provider_failed',
+        message: `Some suggestions could not be loaded (${failedBranches.join(', ')}). This plan may be incomplete.`,
+      })
+    }
+
+    if (shouldFetchEvents && eventStatus === 'unavailable') {
+      notices.push({
+        code: 'events_unavailable',
+        message: DATE_PLAN_NOTICE_MESSAGES.events_unavailable,
+      })
+    } else if (shouldFetchEvents && eventStatus === 'error') {
+      notices.push({
+        code: 'events_error',
+        message: DATE_PLAN_NOTICE_MESSAGES.events_error,
+      })
+    } else if (shouldFetchEvents && eventStatus === 'empty') {
+      notices.push({
+        code: 'events_empty',
+        message: DATE_PLAN_NOTICE_MESSAGES.events_empty,
+      })
+    } else if (eventStatus === 'widened') {
+      notices.push({
+        code: 'events_widened',
+        message: DATE_PLAN_NOTICE_MESSAGES.events_widened,
+      })
+    }
+
+    console.info('[places] event branch', {
+      status: eventStatus,
+      eventCount: events.length,
+    })
 
     logPlacesTiming({
       label: 'date plan final response',
@@ -2590,6 +2595,7 @@ export const getDatePlan = createServerFn({ method: 'POST' })
         activityCount: activities.length,
         eventCount: events.length,
         aiWebSearchCount: aiWebSearchResults.length,
+        noticeCount: notices.length,
       },
     })
 
@@ -2599,6 +2605,7 @@ export const getDatePlan = createServerFn({ method: 'POST' })
       activities,
       events,
       aiWebSearchResults,
+      notices,
     } as DatePlanResponse
 
     return response

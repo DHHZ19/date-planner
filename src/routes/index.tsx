@@ -6,6 +6,7 @@ import { QuestionInputs } from '#/components/QuestionInputs'
 import { WelcomeScreen } from '#/components/WelcomeScreen'
 import { QuickBrowse } from '#/components/QuickBrowse'
 import { QUESTION_SECTIONS } from '#/components/questions/question-config'
+import { LATEST_PLAN_STORAGE_KEY } from '#/lib/date-plan'
 import { searchStateSchema } from '#/schemas/index.schema'
 
 export const Route = createFileRoute('/')({
@@ -20,7 +21,7 @@ function App() {
   const [hasCachedPlan, setHasCachedPlan] = useState(false)
 
   useEffect(() => {
-    setHasCachedPlan(!!localStorage.getItem('date-planner-latest-plan'))
+    setHasCachedPlan(!!localStorage.getItem(LATEST_PLAN_STORAGE_KEY))
   }, [])
 
   if (!search.mode) {

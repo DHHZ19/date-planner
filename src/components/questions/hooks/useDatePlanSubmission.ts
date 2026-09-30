@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react'
 
 import { getDatePlan, resolveAreaLabel } from '#/server-functions/index.ts'
+import { savePlan } from '#/server-functions/plans'
+import { writeLatestPlanToStorage } from '#/lib/date-plan'
+import type { ShareAttempt } from '#/lib/date-plan'
 import type {
   DatePlanResponse,
   NearbyPlace,
@@ -94,17 +97,34 @@ export function useDatePlanSubmission() {
       setDateVibes(datePlanWithSearchState.dateVibes as NearbyPlace[])
       setActivities(datePlanWithSearchState.activities as NearbyPlace[])
 
+      let shareAttempt: ShareAttempt = {
+        reason: 'save_failed',
+        planId: null,
+      }
+
       try {
-        // Cache the result for the results page
-        localStorage.setItem(
-          'date-planner-latest-plan',
-          JSON.stringify(datePlanWithSearchState),
-        )
+        const saved = await savePlan({ data: datePlanWithSearchState })
+        if (saved.planId) {
+          shareAttempt = { reason: 'shared', planId: saved.planId }
+        } else if (saved.reason === 'ok') {
+          shareAttempt = { reason: 'save_failed', planId: null }
+        } else {
+          shareAttempt = { reason: saved.reason, planId: null }
+        }
+      } catch (error) {
+        console.warn('Unable to save shareable date plan.', error)
+      }
+
+      try {
+        writeLatestPlanToStorage(datePlanWithSearchState, shareAttempt)
       } catch (error) {
         console.warn('Unable to cache latest date plan result.', error)
       }
 
-      return datePlanWithSearchState
+      return {
+        plan: datePlanWithSearchState,
+        share: shareAttempt,
+      }
     } catch (error) {
       console.error('Unable to fetch date suggestions.', error)
       setSubmitError('Unable to fetch date suggestions. Please try again.')
