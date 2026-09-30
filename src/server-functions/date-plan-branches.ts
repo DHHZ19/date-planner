@@ -7,8 +7,8 @@ export const matchesEventKeyword = (value: string) => {
 }
 
 /**
- * Guided plans always look for date vibes and live events so a finished plan
- * can satisfy the share gate (at least one place and one event). Quick mode
+ * Guided plans always look for date vibes and live events. A share link needs
+ * two of restaurant, place, and live event. Quick mode
  * follows the explicit plan-type selection, and falls back to the older
  * category/keyword event intent only when plan types were not provided.
  */

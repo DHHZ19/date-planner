@@ -59,7 +59,12 @@ export type DatePlanNotice = {
 export type PlanShareStatus = {
   planId: string | null
   shareable: boolean
-  reason: 'ok' | 'missing_place' | 'missing_event' | 'store_unavailable'
+  reason:
+    | 'ok'
+    | 'missing_place'
+    | 'missing_event'
+    | 'insufficient_categories'
+    | 'store_unavailable'
 }
 
 export type DatePlanResponse = ValidateSerializableInput<

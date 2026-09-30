@@ -103,6 +103,7 @@ export function useDatePlanSubmission() {
             reason:
               share?.reason === 'missing_place' ||
               share?.reason === 'missing_event' ||
+              share?.reason === 'insufficient_categories' ||
               share?.reason === 'store_unavailable'
                 ? share.reason
                 : 'save_failed',

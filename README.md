@@ -63,7 +63,7 @@ OPENAI_API_KEY=...
 
 `GOOGLE_PLACES_API_KEY` is required for Google Places. `TICKETMASTER_API_KEY` enables event results. `OPENAI_API_KEY` enables AI reranking; the app falls back when it is missing.
 
-Shareable plans are stored in Redis at `plan:{id}` and opened at `/p/$planId`. The server writes that record from the `getDatePlan` result after removing HTML photo credits and restricting links and images to safe URLs. Clients cannot submit their own plan JSON. A link is created only when the plan has at least one place and one live event. `PLAN_TTL_SECONDS` controls how long a shared plan lasts and defaults to 30 days (`2592000`). Plan storage uses `REDIS_URL` even when `API_CACHE_ENABLED=false`. If Redis is unavailable, the app keeps the plan in this browser at `/results` and does not mint a share id.
+Shareable plans are stored in Redis at `plan:{id}` and opened at `/p/$planId`. The server writes that record from the `getDatePlan` result after removing HTML photo credits and restricting links and images to safe URLs. Clients cannot submit their own plan JSON. A link is created when at least two of these are present: a restaurant, another place (a date vibe or activity), and a live event. `PLAN_TTL_SECONDS` controls how long a shared plan lasts and defaults to 30 days (`2592000`). Plan storage uses `REDIS_URL` even when `API_CACHE_ENABLED=false`. If Redis is unavailable, the app keeps the plan in this browser at `/results` and does not mint a share id.
 
 Flush API cache keys with:
 

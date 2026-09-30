@@ -82,6 +82,9 @@ export const getRedisClient = async () => {
     const client = createClient({
       url: redisUrl,
       disableOfflineQueue: true,
+      socket: {
+        connectTimeout: 2000,
+      },
     })
     client.on('error', (error) => {
       console.warn('[api-cache] Redis client error; using live API fallback', {

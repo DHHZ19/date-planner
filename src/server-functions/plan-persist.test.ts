@@ -28,15 +28,33 @@ describe('persistShareablePlan', () => {
     vi.mocked(writePlan).mockReset()
   })
 
-  it('does not store a plan that fails the share gate', async () => {
+  it('does not store a plan with only one category', async () => {
     const result = await persistShareablePlan(plan({ events: [] }))
 
     expect(result).toEqual({
       planId: null,
       shareable: false,
-      reason: 'missing_event',
+      reason: 'insufficient_categories',
     })
     expect(writePlan).not.toHaveBeenCalled()
+  })
+
+  it('stores a restaurant and another place when there is no live event', async () => {
+    vi.mocked(writePlan).mockResolvedValue('abcdefghij12')
+
+    const result = await persistShareablePlan(
+      plan({
+        dateVibes: [{ id: 'vibe' }],
+        events: [],
+      }),
+    )
+
+    expect(result).toEqual({
+      planId: 'abcdefghij12',
+      shareable: true,
+      reason: 'ok',
+    })
+    expect(writePlan).toHaveBeenCalledOnce()
   })
 
   it('stores only the sanitized server-authored plan', async () => {

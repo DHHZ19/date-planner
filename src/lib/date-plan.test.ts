@@ -48,7 +48,7 @@ describe('activity idea counts', () => {
 })
 
 describe('evaluateShareGate', () => {
-  it('accepts a plan with one place and one event', () => {
+  it('accepts any two of restaurant, place, and live event', () => {
     expect(evaluateShareGate(plan())).toEqual({ ok: true })
     expect(
       evaluateShareGate(
@@ -59,18 +59,52 @@ describe('evaluateShareGate', () => {
         }),
       ),
     ).toEqual({ ok: true })
+    expect(
+      evaluateShareGate(
+        plan({
+          restaurants: [{ id: 'restaurant-1' }],
+          dateVibes: [{ id: 'vibe' }],
+          events: [],
+        }),
+      ),
+    ).toEqual({ ok: true })
+    expect(
+      evaluateShareGate(
+        plan({
+          restaurants: [{ id: 'restaurant-1' }],
+          activities: [{ id: 'activity' }],
+          events: [],
+        }),
+      ),
+    ).toEqual({ ok: true })
   })
 
-  it('refuses a plan without a place or without an event', () => {
+  it('refuses a single category, including two restaurants with nothing else', () => {
+    expect(
+      evaluateShareGate(
+        plan({
+          restaurants: [{ id: 'a' }, { id: 'b' }],
+          dateVibes: [],
+          activities: [],
+          events: [],
+        }),
+      ),
+    ).toEqual({ ok: false, reason: 'insufficient_categories' })
+    expect(
+      evaluateShareGate(
+        plan({
+          restaurants: [],
+          dateVibes: [{ id: 'vibe' }],
+          activities: [{ id: 'activity' }],
+          events: [],
+        }),
+      ),
+    ).toEqual({ ok: false, reason: 'insufficient_categories' })
     expect(
       evaluateShareGate(
         plan({ restaurants: [], dateVibes: [], activities: [] }),
       ),
-    ).toEqual({ ok: false, reason: 'missing_place' })
-    expect(evaluateShareGate(plan({ events: [] }))).toEqual({
-      ok: false,
-      reason: 'missing_event',
-    })
+    ).toEqual({ ok: false, reason: 'insufficient_categories' })
   })
 
   it('does not count AI web results as places or events', () => {
@@ -99,7 +133,7 @@ describe('evaluateShareGate', () => {
           ],
         }),
       ),
-    ).toEqual({ ok: false, reason: 'missing_place' })
+    ).toEqual({ ok: false, reason: 'insufficient_categories' })
   })
 })
 
@@ -178,7 +212,7 @@ describe('readLatestPlanFromStorage', () => {
 })
 
 describe('getSharePresentation', () => {
-  it('explains a missing Ticketmaster configuration instead of a generic empty list', () => {
+  it('explains the two-category rule and keeps the Ticketmaster notice visible', () => {
     const presentation = getSharePresentation(
       plan({
         events: [],
@@ -189,13 +223,37 @@ describe('getSharePresentation', () => {
           },
         ],
       }),
-      { reason: 'missing_event', planId: null },
+      { reason: 'insufficient_categories', planId: null },
     )
 
-    expect(presentation.blockedMessage).toBe(
-      DATE_PLAN_NOTICE_MESSAGES.events_unavailable,
+    expect(presentation.blockedMessage).toContain('at least two')
+    expect(presentation.blockedMessage).toContain('Adjust your search')
+    expect(presentation.infoNotices.map((notice) => notice.code)).toEqual([
+      'events_unavailable',
+    ])
+    expect(presentation.sharePlanId).toBeNull()
+  })
+
+  it('shares a restaurant and another place when live events are unavailable', () => {
+    const presentation = getSharePresentation(
+      plan({
+        dateVibes: [{ id: 'vibe' }],
+        events: [],
+        notices: [
+          {
+            code: 'events_unavailable',
+            message: DATE_PLAN_NOTICE_MESSAGES.events_unavailable,
+          },
+        ],
+      }),
+      { reason: 'shared', planId: 'abc123xyz12' },
     )
-    expect(presentation.infoNotices).toEqual([])
+
+    expect(presentation.blockedMessage).toBeNull()
+    expect(presentation.sharePlanId).toBe('abc123xyz12')
+    expect(presentation.infoNotices.map((notice) => notice.code)).toEqual([
+      'events_unavailable',
+    ])
   })
 
   it('keeps widened-event context on a shareable plan', () => {

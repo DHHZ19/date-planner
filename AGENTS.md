@@ -178,7 +178,7 @@ For date-time options specifically, `dateTimeSchema` currently allows `Morning |
 ### Ticketmaster
 
 - Ticketmaster support is optional and depends on `TICKETMASTER_API_KEY`.
-- When the key is absent, event search returns an unavailable status and the plan explains that live events could not be included. A share link is not minted without at least one event.
+- When the key is absent, event search returns an unavailable status and the plan explains that live events could not be included. A share link still mints when two other buckets are present: a restaurant and another place (a date vibe or activity).
 
 ### OpenAI
 
@@ -231,8 +231,7 @@ src/
 │   ├── questions/               # Main form flow, fields, hooks, results panel
 │   ├── Header.tsx               # App header
 │   ├── Footer.tsx               # App footer
-│   ├── QuickBrowse.tsx          # Quick browsing UI
-│   └── ThemeToggle.tsx          # Theme switching control
+│   └── QuickBrowse.tsx          # Quick browsing UI
 ├── constants/                   # Suggestions and activity group definitions
 ├── integrations/                # TanStack Query provider/devtools integration
 ├── lib/                         # Shared client utilities and hooks

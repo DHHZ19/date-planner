@@ -14,22 +14,18 @@ export const DATE_PLAN_NOTICE_MESSAGES: Record<
   string
 > = {
   events_unavailable:
-    'Live events are unavailable because Ticketmaster is not configured. A plan cannot be shared until it includes a live event.',
+    'Live events are unavailable because Ticketmaster is not configured.',
   events_empty:
-    'No live events matched this search. A plan cannot be shared until it includes a live event. Try another time or a wider distance.',
-  events_error:
-    'Live events could not be loaded. A plan cannot be shared until it includes a live event. Try again in a moment.',
+    'No live events matched this search. Try another time or a wider distance.',
+  events_error: 'Live events could not be loaded. Try again in a moment.',
   events_widened:
     'No events matched the selected time window, so these events are from the next 7 days.',
   filters_relaxed:
     'Time or rating filters would have hidden every matching place, so broader matches are included.',
 }
 
-const MISSING_PLACE_MESSAGE =
-  'A shareable plan needs at least one place and one live event. No places came back, so this plan was not shared. Adjust your search and try again.'
-
-const MISSING_EVENT_FALLBACK =
-  'A shareable plan needs at least one place and one live event. No live events came back, so this plan was not shared. Try another time or a wider distance.'
+const NOT_SHAREABLE_MESSAGE =
+  'A shareable plan needs at least two of these: a restaurant, another place (a date vibe or activity), and a live event. This plan does not have two yet, so it was not shared. Adjust your search and try again.'
 
 const STORE_FAILURE_MESSAGE =
   'This plan is on this device only. A share link could not be created because plan storage is unavailable. Try again in a moment.'
@@ -71,6 +67,7 @@ export const shareAttemptSchema = z.object({
     'shared',
     'missing_place',
     'missing_event',
+    'insufficient_categories',
     'store_unavailable',
     'save_failed',
     'invalid_plan',
@@ -81,12 +78,6 @@ export const shareAttemptSchema = z.object({
 export type ShareAttempt = z.infer<typeof shareAttemptSchema>
 
 export type SavePlanReason = ShareAttempt['reason'] | 'ok'
-
-const EVENT_NOTICE_CODES = new Set<DatePlanNoticeCode>([
-  'events_unavailable',
-  'events_empty',
-  'events_error',
-])
 
 export const countPlanPlaces = (plan: {
   restaurants?: ReadonlyArray<unknown>
@@ -100,23 +91,27 @@ export const countPlanPlaces = (plan: {
   )
 }
 
+export type ShareGateReason = 'insufficient_categories'
+
 /**
- * A shareable plan needs one real place (restaurants, date vibes, or
- * activities) and one live event. AI web-search rows do not satisfy either
- * side of the gate.
+ * A shareable plan needs two of three buckets: restaurants, another place
+ * (date vibes or activities, together), and a live event. Several restaurants
+ * alone are still one bucket. AI web-search rows do not count.
  */
 export const evaluateShareGate = (plan: {
   restaurants?: ReadonlyArray<unknown>
   dateVibes?: ReadonlyArray<unknown>
   activities?: ReadonlyArray<unknown>
   events?: ReadonlyArray<unknown>
-}): { ok: true } | { ok: false; reason: 'missing_place' | 'missing_event' } => {
-  if (countPlanPlaces(plan) < 1) {
-    return { ok: false, reason: 'missing_place' }
-  }
+}): { ok: true } | { ok: false; reason: ShareGateReason } => {
+  const categories = [
+    (plan.restaurants?.length ?? 0) > 0,
+    (plan.dateVibes?.length ?? 0) > 0 || (plan.activities?.length ?? 0) > 0,
+    (plan.events?.length ?? 0) > 0,
+  ].filter(Boolean).length
 
-  if ((plan.events?.length ?? 0) < 1) {
-    return { ok: false, reason: 'missing_event' }
+  if (categories < 2) {
+    return { ok: false, reason: 'insufficient_categories' }
   }
 
   return { ok: true }
@@ -169,13 +164,8 @@ export const getSharePresentation = (
   const notices = plan.notices ?? []
   let blockedMessage: string | null = null
 
-  if (!gate.ok && gate.reason === 'missing_place') {
-    blockedMessage = MISSING_PLACE_MESSAGE
-  } else if (!gate.ok) {
-    const eventNotice = notices.find((notice) =>
-      EVENT_NOTICE_CODES.has(notice.code),
-    )
-    blockedMessage = eventNotice?.message ?? MISSING_EVENT_FALLBACK
+  if (!gate.ok) {
+    blockedMessage = NOT_SHAREABLE_MESSAGE
   } else if (
     attempt?.reason === 'store_unavailable' ||
     attempt?.reason === 'save_failed' ||
