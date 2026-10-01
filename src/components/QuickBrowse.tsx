@@ -9,6 +9,7 @@ import QuickFoodField from '#/components/questions/fields/QuickFoodField'
 import PlanTypeField from '#/components/questions/fields/PlanTypeField'
 import ErrorBanner from '#/components/ErrorBanner'
 import { getRandomCuisineSurprise } from '#/constants/food-suggestions'
+import { useKeyboardObstruction } from '#/lib/keyboard-obstruction'
 import { startSafeViewTransition } from '#/lib/startSafeViewTransition'
 
 const PLAN_TYPE_HELP_ITEMS = [
@@ -42,6 +43,7 @@ export function QuickBrowse() {
   const { search, updateField, toggleCsvFieldValue, getCsvFieldValues } =
     useQuestionSearchState()
   const { isSubmitting, submitError, submitDatePlan } = useDatePlanSubmission()
+  const keyboardObstructsForm = useKeyboardObstruction()
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -269,7 +271,9 @@ export function QuickBrowse() {
         </section>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-[var(--ui-bg)] via-[var(--ui-bg)] to-transparent px-4 pt-8 pb-6 sm:pb-8">
+      <div
+        className={`fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-[var(--ui-bg)] via-[var(--ui-bg)] to-transparent px-4 pt-8 pb-6 sm:pb-8 ${keyboardObstructsForm ? 'hidden' : ''}`}
+      >
         <div className="mx-auto max-w-2xl">
           <button
             type="button"

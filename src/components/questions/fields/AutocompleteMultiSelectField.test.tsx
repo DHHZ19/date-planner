@@ -66,8 +66,8 @@ describe('connectFieldToMenu', () => {
     expect(embedded).toContain('bg-transparent')
     expect(embedded).not.toContain('ui-border')
     expect(embedded).not.toContain('focus:border')
-    expect(embedded).not.toContain('w-full')
-    expect(embedded).not.toContain('py-3')
+    expect(embedded).toContain('w-full')
+    expect(embedded).toContain('py-3')
     expect(embedded).toContain('pr-14')
   })
 })
@@ -132,26 +132,22 @@ describe('AutocompleteMultiSelectField', () => {
     fireEvent.click(input)
     const chip = screen.getByRole('button', { name: 'Remove Sushi' })
     const reopened = screen.getByRole('listbox', { name: 'Food suggestions' })
-    const chipRow = input.parentElement
-    expect(chipRow?.contains(chip)).toBe(true)
-    expect(chipRow?.className).toContain('overflow-x-auto')
-    expect(chipRow?.className).toContain('h-14')
-    expect(chipRow?.className).not.toContain('flex-wrap')
-    expect(chip.className).toContain('shrink-0')
-    expect(chip.className).toContain('whitespace-nowrap')
-    expect(chip.querySelector('span')?.className ?? '').not.toContain(
-      'truncate',
-    )
+    const chipList = chip.closest('ul')
+    expect(input.parentElement?.contains(chip)).toBe(false)
     expect(
-      chip.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING,
+      input.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(reopened.previousElementSibling).toBe(chipRow?.parentElement)
+    expect(
+      chip.compareDocumentPosition(reopened) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(reopened.previousElementSibling).toBe(chipList)
+    expect(chipList?.className).toContain('border-t-2')
+    expect(chipList?.className).toContain('flex-wrap')
     const shell = reopened.parentElement
     expect(shell?.contains(input)).toBe(true)
     expect(shell?.contains(chip)).toBe(true)
     expect(shell?.className).toContain('rounded-2xl')
     expect(shell?.className).toContain('border-2')
-    expect(chip.closest('ul')?.className).not.toContain('border-t')
     expect(reopened.className).toContain('relative')
     expect(reopened.className).toContain('mt-0')
     expect(reopened.className).toContain('border-t-2')
@@ -200,9 +196,9 @@ describe('AutocompleteMultiSelectField', () => {
 
     expect(screen.queryByRole('listbox')).toBeNull()
     expect(input).toHaveProperty('value', '')
-    expect(input.parentElement?.contains(chip)).toBe(true)
+    expect(input.parentElement?.contains(chip)).toBe(false)
     expect(
-      chip.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING,
+      input.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     expect(onChange).toHaveBeenCalledWith('italian_restaurant')
   })

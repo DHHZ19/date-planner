@@ -45,11 +45,6 @@ export function embedFieldInShell(
     .replace(/\bfocus:border-\[var\(--love-300\)\]/g, '')
     .replace(/\bfocus:ring-4\b/g, '')
     .replace(/\bfocus:ring-\[var\(--love-050\)\]\/70/g, '')
-    .replace(/\bblock\b/g, '')
-    .replace(/\bw-full\b/g, '')
-    .replace(/\bpy-2\b/g, '')
-    .replace(/\bpy-3\b/g, '')
-    .replace(/\bsm:py-3\.5\b/g, '')
 
   if (clearable) {
     next = next.replace(/\bpx-4\b/g, 'pl-4 pr-14')

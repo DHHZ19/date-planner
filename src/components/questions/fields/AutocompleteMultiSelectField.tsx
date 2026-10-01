@@ -30,6 +30,23 @@ function normalizeRawValue(value: string | undefined) {
   return value ?? ''
 }
 
+function scrollControlAboveKeyboard(element: HTMLElement) {
+  if (!window.matchMedia('(max-width: 639px)').matches) {
+    return
+  }
+
+  const viewport = window.visualViewport
+  if (!viewport) {
+    element.scrollIntoView({ block: 'start' })
+    return
+  }
+
+  const delta = element.getBoundingClientRect().top - viewport.offsetTop - 12
+  if (Math.abs(delta) > 1) {
+    window.scrollBy({ top: delta })
+  }
+}
+
 export type AutocompleteSuggestion = {
   value: string
   label: string
@@ -100,18 +117,11 @@ export default function AutocompleteMultiSelectField({
   const [activeIndex, setActiveIndex] = useState(0)
   const [keyboardNavigationActive, setKeyboardNavigationActive] =
     useState(false)
+  const [menuMaxPx, setMenuMaxPx] = useState<number | null>(null)
   const doneButtonRef = useRef<HTMLButtonElement | null>(null)
   const suppressNextOpenRef = useRef(false)
   const previousResetKeyRef = useRef(resetKey)
   const localRawValueRef = useRef(buildRawValue(parseCsv(defaultValue), ''))
-
-  useEffect(() => {
-    const row = inputRef.current?.parentElement
-    if (!row || selectedValues.length === 0) {
-      return
-    }
-    row.scrollLeft = row.scrollWidth
-  }, [selectedValues])
 
   const emitChange = (nextRawValue: string) => {
     localRawValueRef.current = nextRawValue
@@ -228,6 +238,48 @@ export default function AutocompleteMultiSelectField({
     keyboardNavigationActive,
     filteredSuggestions.length,
   ])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setMenuMaxPx(null)
+      return
+    }
+
+    const update = () => {
+      const anchor = containerRef.current
+      if (anchor) {
+        scrollControlAboveKeyboard(anchor)
+      }
+
+      const narrow = window.matchMedia('(max-width: 639px)').matches
+      const viewport = window.visualViewport
+      const input = inputRef.current
+      if (!narrow || !viewport || !input) {
+        setMenuMaxPx(null)
+        return
+      }
+
+      const chipRow = anchor?.querySelector('[data-selected-chips]')
+      const contentBottom =
+        chipRow?.getBoundingClientRect().bottom ??
+        input.getBoundingClientRect().bottom
+      const available =
+        viewport.offsetTop + viewport.height - contentBottom - 16
+      setMenuMaxPx(Math.max(120, Math.min(240, available)))
+    }
+
+    update()
+    const viewport = window.visualViewport
+    viewport?.addEventListener('resize', update)
+    viewport?.addEventListener('scroll', update)
+    const later = window.setTimeout(update, 300)
+
+    return () => {
+      viewport?.removeEventListener('resize', update)
+      viewport?.removeEventListener('scroll', update)
+      window.clearTimeout(later)
+    }
+  }, [isOpen, selectedValues.length])
 
   const selectSuggestion = (value: string) => {
     toggleSuggestion(value)
@@ -367,7 +419,10 @@ export default function AutocompleteMultiSelectField({
             Done
           </button>
         </div>
-        <div className="max-h-[min(15rem,40svh)] overflow-y-auto overscroll-y-contain py-1">
+        <div
+          className="max-h-[min(15rem,40svh)] overflow-y-auto overscroll-y-contain py-1"
+          style={menuMaxPx == null ? undefined : { maxHeight: menuMaxPx }}
+        >
           {groupSuggestionsByCategory(
             filteredSuggestions,
             uncategorizedSectionLabel,
@@ -405,18 +460,21 @@ export default function AutocompleteMultiSelectField({
 
   const selectedChips =
     selectedValues.length > 0 ? (
-      <ul className="contents">
+      <ul
+        data-selected-chips
+        className="flex flex-wrap gap-2 border-t-2 border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2"
+      >
         {selectedValues.map((value) => {
           const label = labelFor(value)
           return (
-            <li key={value} className="shrink-0">
+            <li key={value}>
               <button
                 type="button"
                 aria-label={`Remove ${label}`}
-                className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border-2 border-[var(--love-900)] bg-[var(--love-700)] px-3 text-sm font-semibold whitespace-nowrap text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]"
+                className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-2xl border-2 border-[var(--love-900)] bg-[var(--love-700)] px-3 text-sm font-semibold text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]"
                 onClick={() => selectSuggestion(value)}
               >
-                <span>{label}</span>
+                <span className="truncate">{label}</span>
                 <span aria-hidden="true">×</span>
               </button>
             </li>
@@ -427,9 +485,7 @@ export default function AutocompleteMultiSelectField({
 
   const clearable = selectedValues.length > 0 || currentInput.length > 0
   const fieldClassName = menuFollowsChips
-    ? `${embedFieldInShell(className ?? baseFieldClassName, {
-        clearable: false,
-      })} h-11 min-h-0 min-w-24 shrink-0 flex-1`
+    ? embedFieldInShell(className ?? baseFieldClassName, { clearable })
     : connectFieldToMenu(className ?? baseFieldClassName, {
         open: isOpen,
         clearable,
@@ -447,84 +503,78 @@ export default function AutocompleteMultiSelectField({
       onKeyDown={handleKeyDown}
     >
       <div className={joinedShellClassName}>
-        <div className={menuFollowsChips ? 'relative h-14' : 'relative'}>
-          <div
-            className={
-              menuFollowsChips
-                ? 'flex h-14 min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain px-3 pr-14'
+        <div className="relative">
+          <input
+            ref={inputRef}
+            id={id}
+            name={name}
+            key={`${id}-${resetKey}`}
+            className={`${fieldClassName} scroll-mt-4 scroll-mb-[40svh] sm:scroll-mb-6`}
+            type="text"
+            autoComplete="off"
+            aria-describedby={describedBy}
+            placeholder={
+              selectedValues.length > 0 ? 'Add another' : placeholder
+            }
+            value={currentInput}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={isOpen}
+            aria-controls={`${id}-listbox`}
+            aria-activedescendant={
+              isOpen
+                ? activeIndex === filteredSuggestions.length
+                  ? `${id}-done`
+                  : `${id}-option-${activeIndex}`
                 : undefined
             }
-          >
-            {menuFollowsChips ? selectedChips : null}
-            <input
-              ref={inputRef}
-              id={id}
-              name={name}
-              key={`${id}-${resetKey}`}
-              className={`${fieldClassName} scroll-mt-4 scroll-mb-[40svh] sm:scroll-mb-6`}
-              type="text"
-              autoComplete="off"
-              aria-describedby={describedBy}
-              placeholder={
-                selectedValues.length > 0 ? 'Add another' : placeholder
+            onFocus={() => {
+              const anchor = containerRef.current
+              if (anchor) {
+                scrollControlAboveKeyboard(anchor)
+                window.setTimeout(() => scrollControlAboveKeyboard(anchor), 300)
               }
-              value={currentInput}
-              role="combobox"
-              aria-autocomplete="list"
-              aria-expanded={isOpen}
-              aria-controls={`${id}-listbox`}
-              aria-activedescendant={
-                isOpen
-                  ? activeIndex === filteredSuggestions.length
-                    ? `${id}-done`
-                    : `${id}-option-${activeIndex}`
-                  : undefined
+              if (suppressNextOpenRef.current) {
+                suppressNextOpenRef.current = false
+                return
               }
-              onFocus={(event) => {
-                if (window.matchMedia('(max-width: 639px)').matches) {
-                  event.currentTarget.scrollIntoView({ block: 'start' })
-                }
-                if (suppressNextOpenRef.current) {
-                  suppressNextOpenRef.current = false
+              setIsOpen(true)
+              setActiveIndex(0)
+              setKeyboardNavigationActive(false)
+            }}
+            onClick={() => {
+              setIsOpen(true)
+            }}
+            onBlur={() => {
+              // Keep the list open while focus moves inside the widget.
+              window.setTimeout(() => {
+                const activeElement = document.activeElement
+                if (
+                  activeElement &&
+                  containerRef.current?.contains(activeElement)
+                ) {
                   return
                 }
-                setIsOpen(true)
-                setActiveIndex(0)
-                setKeyboardNavigationActive(false)
-              }}
-              onClick={() => {
-                setIsOpen(true)
-              }}
-              onBlur={() => {
-                // Keep the list open while focus moves inside the widget.
-                window.setTimeout(() => {
-                  const activeElement = document.activeElement
-                  if (
-                    activeElement &&
-                    containerRef.current?.contains(activeElement)
-                  ) {
-                    return
-                  }
 
-                  setIsOpen(false)
-                  setKeyboardNavigationActive(false)
-                }, 100)
-              }}
-              onChange={(event) => {
-                const nextInput = event.target.value
-                setCurrentInput(nextInput)
-                emitChange(buildRawValue(selectedValues, nextInput))
-                setActiveIndex(0)
+                setIsOpen(false)
                 setKeyboardNavigationActive(false)
-                setIsOpen(true)
-              }}
-            />
-          </div>
+              }, 100)
+            }}
+            onChange={(event) => {
+              const nextInput = event.target.value
+              setCurrentInput(nextInput)
+              emitChange(buildRawValue(selectedValues, nextInput))
+              setActiveIndex(0)
+              setKeyboardNavigationActive(false)
+              setIsOpen(true)
+            }}
+          />
 
           {clearable ? <ClearFieldButton onClick={clearValue} /> : null}
 
           {menuFollowsChips ? null : suggestionMenu}
         </div>
+        {selectedChips}
         {menuFollowsChips ? suggestionMenu : null}
       </div>
     </div>
