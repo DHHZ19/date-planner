@@ -292,38 +292,44 @@ export default function AutocompleteMultiSelectField({
     }
   }
 
+  const selectedChips =
+    selectedValues.length > 0 ? (
+      <ul className="mt-2 flex flex-wrap gap-2">
+        {selectedValues.map((value) => {
+          const label = labelFor(value)
+          return (
+            <li key={value}>
+              <button
+                type="button"
+                aria-label={`Remove ${label}`}
+                className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-2xl border-2 border-[var(--love-900)] bg-[var(--love-700)] px-3 text-sm font-semibold text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]"
+                onClick={() => selectSuggestion(value)}
+              >
+                <span className="truncate">{label}</span>
+                <span aria-hidden="true">×</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    ) : null
+
   return (
-    <div ref={containerRef} onKeyDown={handleKeyDown}>
-      {selectedValues.length > 0 ? (
-        <ul className="mb-2 flex flex-wrap gap-2">
-          {selectedValues.map((value) => {
-            const label = labelFor(value)
-            return (
-              <li key={value}>
-                <button
-                  type="button"
-                  aria-label={`Remove ${label}`}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-2xl border-2 border-[var(--love-900)] bg-[var(--love-700)] px-3 text-sm font-semibold text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]"
-                  onClick={() => selectSuggestion(value)}
-                >
-                  {label}
-                  <span aria-hidden="true">×</span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      ) : null}
+    <div
+      ref={containerRef}
+      className="w-full min-w-0"
+      onKeyDown={handleKeyDown}
+    >
       <div className="relative">
         <input
           ref={inputRef}
           id={id}
           name={name}
           key={`${id}-${resetKey}`}
-          className={connectFieldToMenu(className ?? baseFieldClassName, {
+          className={`${connectFieldToMenu(className ?? baseFieldClassName, {
             open: isOpen,
             clearable: selectedValues.length > 0 || currentInput.length > 0,
-          })}
+          })} scroll-mt-4 scroll-mb-[40svh] sm:scroll-mb-6`}
           type="text"
           autoComplete="off"
           aria-describedby={describedBy}
@@ -340,7 +346,10 @@ export default function AutocompleteMultiSelectField({
                 : `${id}-option-${activeIndex}`
               : undefined
           }
-          onFocus={() => {
+          onFocus={(event) => {
+            if (window.matchMedia('(max-width: 639px)').matches) {
+              event.currentTarget.scrollIntoView({ block: 'start' })
+            }
             if (suppressNextOpenRef.current) {
               suppressNextOpenRef.current = false
               return
@@ -411,7 +420,7 @@ export default function AutocompleteMultiSelectField({
                 Done
               </button>
             </div>
-            <ul className="max-h-60 overflow-auto py-1">
+            <ul className="max-h-[min(15rem,40svh)] overflow-y-auto overscroll-y-contain py-1">
               {filteredSuggestions.map((suggestion, index) => (
                 <SuggestionOption
                   key={suggestion.value}
@@ -436,6 +445,7 @@ export default function AutocompleteMultiSelectField({
           </SuggestionMenu>
         )}
       </div>
+      {selectedChips}
     </div>
   )
 }

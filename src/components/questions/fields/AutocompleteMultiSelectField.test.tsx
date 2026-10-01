@@ -15,6 +15,17 @@ const suggestions = [
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {}
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList
 })
 
 afterEach(() => {
@@ -69,6 +80,10 @@ describe('AutocompleteMultiSelectField', () => {
 
     const options = screen.getAllByRole('option')
     expect(options[0]?.className).toContain('min-h-11')
+    expect(menu.querySelector('ul')?.className).toContain('40svh')
+    expect(menu.querySelector('ul')?.className).toContain(
+      'overscroll-y-contain',
+    )
 
     fireEvent.keyDown(input, { key: 'ArrowDown' })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -116,9 +131,14 @@ describe('AutocompleteMultiSelectField', () => {
     fireEvent.focus(screen.getByRole('combobox'))
     fireEvent.click(screen.getByRole('option', { name: /Italian/ }))
 
+    const input = screen.getByRole('combobox')
+    const chip = screen.getByRole('button', { name: 'Remove Italian' })
+
     expect(screen.queryByRole('listbox')).toBeNull()
-    expect(screen.getByRole('combobox')).toHaveProperty('value', '')
-    expect(screen.getByRole('button', { name: 'Remove Italian' })).toBeTruthy()
+    expect(input).toHaveProperty('value', '')
+    expect(
+      input.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(onChange).toHaveBeenCalledWith('italian_restaurant')
   })
 })

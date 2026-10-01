@@ -47,8 +47,8 @@ export function SuggestionMenu({
       aria-multiselectable={multiselect ? true : undefined}
       className={
         connected
-          ? 'absolute top-full right-0 left-0 z-30 overflow-hidden rounded-b-2xl border-2 border-[var(--ui-border)] border-t-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
-          : 'absolute top-full right-0 left-0 z-30 overflow-hidden rounded-2xl border-2 border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
+          ? 'absolute top-full right-0 left-0 z-30 w-full max-w-full overflow-hidden rounded-b-2xl border-2 border-[var(--ui-border)] border-t-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
+          : 'absolute top-full right-0 left-0 z-30 w-full max-w-full overflow-hidden rounded-2xl border-2 border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
       }
     >
       {children}
@@ -121,7 +121,7 @@ export function SuggestionOption({
             </svg>
           ) : null}
         </span>
-        <span className="min-w-0 flex-1">{label}</span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
         {detail ? (
           <span
             aria-hidden="true"
