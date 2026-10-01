@@ -7,6 +7,7 @@ import {
   SuggestionMenu,
   SuggestionOption,
   connectFieldToMenu,
+  embedFieldInShell,
 } from './SuggestionMenu'
 
 function parseCsv(value: string | undefined) {
@@ -292,9 +293,72 @@ export default function AutocompleteMultiSelectField({
     }
   }
 
+  const menuFollowsChips = selectedValues.length > 0
+  const suggestionMenu =
+    isOpen && filteredSuggestions.length > 0 ? (
+      <SuggestionMenu
+        id={`${id}-listbox`}
+        label={ariaLabel}
+        multiselect
+        stacked={menuFollowsChips}
+        connected={!menuFollowsChips}
+      >
+        <div className="flex min-h-11 items-center justify-between border-b border-[var(--ui-border)] pr-1 pl-3">
+          <p className="text-xs font-semibold tracking-wide text-[var(--ui-text-muted)] uppercase">
+            Suggestions
+            {selectedValues.length > 0 && (
+              <span className="ml-1 text-[var(--love-600)]">
+                ({selectedValues.length}/{maxSelections})
+              </span>
+            )}
+          </p>
+          <button
+            id={`${id}-done`}
+            ref={doneButtonRef}
+            type="button"
+            className={`min-h-11 cursor-pointer rounded-xl px-3 text-sm font-semibold text-[var(--love-700)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)] ${
+              activeIndex === filteredSuggestions.length
+                ? 'bg-[var(--love-050)] text-[var(--love-900)]'
+                : 'hover:text-[var(--love-900)]'
+            }`}
+            onMouseDown={(event) => event.preventDefault()}
+            onMouseEnter={() => {
+              setActiveIndex(filteredSuggestions.length)
+              setKeyboardNavigationActive(true)
+            }}
+            onClick={() => setIsOpen(false)}
+          >
+            Done
+          </button>
+        </div>
+        <ul className="max-h-[min(15rem,40svh)] overflow-y-auto overscroll-y-contain py-1">
+          {filteredSuggestions.map((suggestion, index) => (
+            <SuggestionOption
+              key={suggestion.value}
+              id={`${id}-option-${index}`}
+              label={suggestion.label}
+              detail={suggestion.category}
+              selected={selectedSet.has(suggestion.value)}
+              active={index === activeIndex}
+              onHighlight={() => {
+                setActiveIndex(index)
+                setKeyboardNavigationActive(false)
+              }}
+              onSelect={() => selectSuggestion(suggestion.value)}
+            />
+          ))}
+        </ul>
+        {selectedValues.length >= maxSelections && (
+          <div className="border-t border-[var(--ui-border)] bg-[var(--ui-surface-soft)] px-3 py-2 text-center text-xs text-[var(--ui-text-muted)]">
+            Maximum {maxSelections} selections
+          </div>
+        )}
+      </SuggestionMenu>
+    ) : null
+
   const selectedChips =
     selectedValues.length > 0 ? (
-      <ul className="mt-2 flex flex-wrap gap-2">
+      <ul className="flex flex-wrap gap-2 border-t-2 border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2">
         {selectedValues.map((value) => {
           const label = labelFor(value)
           return (
@@ -314,138 +378,98 @@ export default function AutocompleteMultiSelectField({
       </ul>
     ) : null
 
+  const clearable = selectedValues.length > 0 || currentInput.length > 0
+  const fieldClassName = menuFollowsChips
+    ? embedFieldInShell(className ?? baseFieldClassName, { clearable })
+    : connectFieldToMenu(className ?? baseFieldClassName, {
+        open: isOpen,
+        clearable,
+      })
+  const joinedShellClassName = menuFollowsChips
+    ? isOpen
+      ? 'overflow-hidden rounded-2xl border-2 border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
+      : 'rounded-2xl border-2 border-[var(--ui-border)] border-b-4 bg-[var(--ui-surface)] focus-within:border-[var(--love-300)] focus-within:ring-4 focus-within:ring-[var(--love-050)]/70'
+    : undefined
+
   return (
     <div
       ref={containerRef}
       className="w-full min-w-0"
       onKeyDown={handleKeyDown}
     >
-      <div className="relative">
-        <input
-          ref={inputRef}
-          id={id}
-          name={name}
-          key={`${id}-${resetKey}`}
-          className={`${connectFieldToMenu(className ?? baseFieldClassName, {
-            open: isOpen,
-            clearable: selectedValues.length > 0 || currentInput.length > 0,
-          })} scroll-mt-4 scroll-mb-[40svh] sm:scroll-mb-6`}
-          type="text"
-          autoComplete="off"
-          aria-describedby={describedBy}
-          placeholder={selectedValues.length > 0 ? 'Add another' : placeholder}
-          value={currentInput}
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={isOpen}
-          aria-controls={`${id}-listbox`}
-          aria-activedescendant={
-            isOpen
-              ? activeIndex === filteredSuggestions.length
-                ? `${id}-done`
-                : `${id}-option-${activeIndex}`
-              : undefined
-          }
-          onFocus={(event) => {
-            if (window.matchMedia('(max-width: 639px)').matches) {
-              event.currentTarget.scrollIntoView({ block: 'start' })
+      <div className={joinedShellClassName}>
+        <div className="relative">
+          <input
+            ref={inputRef}
+            id={id}
+            name={name}
+            key={`${id}-${resetKey}`}
+            className={`${fieldClassName} scroll-mt-4 scroll-mb-[40svh] sm:scroll-mb-6`}
+            type="text"
+            autoComplete="off"
+            aria-describedby={describedBy}
+            placeholder={
+              selectedValues.length > 0 ? 'Add another' : placeholder
             }
-            if (suppressNextOpenRef.current) {
-              suppressNextOpenRef.current = false
-              return
+            value={currentInput}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={isOpen}
+            aria-controls={`${id}-listbox`}
+            aria-activedescendant={
+              isOpen
+                ? activeIndex === filteredSuggestions.length
+                  ? `${id}-done`
+                  : `${id}-option-${activeIndex}`
+                : undefined
             }
-            setIsOpen(true)
-            setActiveIndex(0)
-            setKeyboardNavigationActive(false)
-          }}
-          onClick={() => {
-            setIsOpen(true)
-          }}
-          onBlur={() => {
-            // Keep the list open while focus moves inside the widget.
-            window.setTimeout(() => {
-              const activeElement = document.activeElement
-              if (
-                activeElement &&
-                containerRef.current?.contains(activeElement)
-              ) {
+            onFocus={(event) => {
+              if (window.matchMedia('(max-width: 639px)').matches) {
+                event.currentTarget.scrollIntoView({ block: 'start' })
+              }
+              if (suppressNextOpenRef.current) {
+                suppressNextOpenRef.current = false
                 return
               }
-
-              setIsOpen(false)
+              setIsOpen(true)
+              setActiveIndex(0)
               setKeyboardNavigationActive(false)
-            }, 100)
-          }}
-          onChange={(event) => {
-            const nextInput = event.target.value
-            setCurrentInput(nextInput)
-            emitChange(buildRawValue(selectedValues, nextInput))
-            setActiveIndex(0)
-            setKeyboardNavigationActive(false)
-            setIsOpen(true)
-          }}
-        />
+            }}
+            onClick={() => {
+              setIsOpen(true)
+            }}
+            onBlur={() => {
+              // Keep the list open while focus moves inside the widget.
+              window.setTimeout(() => {
+                const activeElement = document.activeElement
+                if (
+                  activeElement &&
+                  containerRef.current?.contains(activeElement)
+                ) {
+                  return
+                }
 
-        {selectedValues.length > 0 || currentInput.length > 0 ? (
-          <ClearFieldButton onClick={clearValue} />
-        ) : null}
+                setIsOpen(false)
+                setKeyboardNavigationActive(false)
+              }, 100)
+            }}
+            onChange={(event) => {
+              const nextInput = event.target.value
+              setCurrentInput(nextInput)
+              emitChange(buildRawValue(selectedValues, nextInput))
+              setActiveIndex(0)
+              setKeyboardNavigationActive(false)
+              setIsOpen(true)
+            }}
+          />
 
-        {isOpen && filteredSuggestions.length > 0 && (
-          <SuggestionMenu id={`${id}-listbox`} label={ariaLabel} multiselect>
-            <div className="flex min-h-11 items-center justify-between border-b border-[var(--ui-border)] pr-1 pl-3">
-              <p className="text-xs font-semibold tracking-wide text-[var(--ui-text-muted)] uppercase">
-                Suggestions
-                {selectedValues.length > 0 && (
-                  <span className="ml-1 text-[var(--love-600)]">
-                    ({selectedValues.length}/{maxSelections})
-                  </span>
-                )}
-              </p>
-              <button
-                id={`${id}-done`}
-                ref={doneButtonRef}
-                type="button"
-                className={`min-h-11 cursor-pointer rounded-xl px-3 text-sm font-semibold text-[var(--love-700)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)] ${
-                  activeIndex === filteredSuggestions.length
-                    ? 'bg-[var(--love-050)] text-[var(--love-900)]'
-                    : 'hover:text-[var(--love-900)]'
-                }`}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseEnter={() => {
-                  setActiveIndex(filteredSuggestions.length)
-                  setKeyboardNavigationActive(true)
-                }}
-                onClick={() => setIsOpen(false)}
-              >
-                Done
-              </button>
-            </div>
-            <ul className="max-h-[min(15rem,40svh)] overflow-y-auto overscroll-y-contain py-1">
-              {filteredSuggestions.map((suggestion, index) => (
-                <SuggestionOption
-                  key={suggestion.value}
-                  id={`${id}-option-${index}`}
-                  label={suggestion.label}
-                  detail={suggestion.category}
-                  selected={selectedSet.has(suggestion.value)}
-                  active={index === activeIndex}
-                  onHighlight={() => {
-                    setActiveIndex(index)
-                    setKeyboardNavigationActive(false)
-                  }}
-                  onSelect={() => selectSuggestion(suggestion.value)}
-                />
-              ))}
-            </ul>
-            {selectedValues.length >= maxSelections && (
-              <div className="border-t border-[var(--ui-border)] bg-[var(--ui-surface-soft)] px-3 py-2 text-center text-xs text-[var(--ui-text-muted)]">
-                Maximum {maxSelections} selections
-              </div>
-            )}
-          </SuggestionMenu>
-        )}
+          {clearable ? <ClearFieldButton onClick={clearValue} /> : null}
+
+          {menuFollowsChips ? null : suggestionMenu}
+        </div>
+        {selectedChips}
+        {menuFollowsChips ? suggestionMenu : null}
       </div>
-      {selectedChips}
     </div>
   )
 }

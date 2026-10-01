@@ -5,7 +5,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import AutocompleteMultiSelectField from '#/components/questions/fields/AutocompleteMultiSelectField'
 import { baseFieldClassName } from '#/components/questions/fields/field-classes'
-import { connectFieldToMenu } from '#/components/questions/fields/SuggestionMenu'
+import {
+  connectFieldToMenu,
+  embedFieldInShell,
+} from '#/components/questions/fields/SuggestionMenu'
 
 const suggestions = [
   { value: 'italian_restaurant', label: 'Italian', category: 'Cuisine' },
@@ -51,6 +54,18 @@ describe('connectFieldToMenu', () => {
       }),
     ).toBe(baseFieldClassName)
   })
+
+  it('lets the joined shell own the field border', () => {
+    const embedded = embedFieldInShell(baseFieldClassName, { clearable: true })
+
+    expect(embedded).not.toContain('rounded')
+    expect(embedded).not.toContain('border-2')
+    expect(embedded).not.toContain('border-b-4')
+    expect(embedded).toContain('bg-transparent')
+    expect(embedded).not.toContain('ui-border')
+    expect(embedded).not.toContain('focus:border')
+    expect(embedded).toContain('pr-14')
+  })
 })
 
 describe('AutocompleteMultiSelectField', () => {
@@ -94,6 +109,27 @@ describe('AutocompleteMultiSelectField', () => {
     expect(onChange).toHaveBeenCalledWith('sushi_restaurant')
 
     fireEvent.click(input)
+    const chip = screen.getByRole('button', { name: 'Remove Sushi' })
+    const reopened = screen.getByRole('listbox', { name: 'Food suggestions' })
+    expect(
+      input.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      chip.compareDocumentPosition(reopened) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    const shell = reopened.parentElement
+    expect(shell).toBe(chip.closest('ul')?.parentElement)
+    expect(shell?.contains(input)).toBe(true)
+    expect(shell?.className).toContain('rounded-2xl')
+    expect(shell?.className).toContain('border-2')
+    expect(chip.closest('ul')?.className).toContain('border-t-2')
+    expect(chip.closest('ul')?.className).not.toContain('mt-2')
+    expect(reopened.className).toContain('relative')
+    expect(reopened.className).toContain('mt-0')
+    expect(reopened.className).toContain('border-t-2')
+    expect(reopened.className).not.toContain('absolute')
+    expect(reopened.className).not.toContain('rounded')
+    expect(input.className).not.toContain('border-2')
     expect(
       screen
         .getByRole('option', { name: /Sushi/ })

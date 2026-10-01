@@ -26,30 +26,62 @@ export function connectFieldToMenu(
   return next.replace(/\s+/g, ' ').trim()
 }
 
+/**
+ * The joined shell owns the border, radius, and fill. The input keeps its
+ * type styles and drops the chrome that would draw a second box.
+ */
+export function embedFieldInShell(
+  className: string,
+  { clearable }: { clearable: boolean },
+) {
+  let next = className
+    .replace(/\brounded-t-2xl\b/g, '')
+    .replace(/\brounded-2xl\b/g, '')
+    .replace(/\bborder-b-4\b/g, '')
+    .replace(/\bborder-b-0\b/g, '')
+    .replace(/\bborder-2\b/g, '')
+    .replace(/\bborder-\[var\(--ui-border\)\]/g, '')
+    .replace(/\bbg-\[var\(--ui-surface\)\]/g, 'bg-transparent')
+    .replace(/\bfocus:border-\[var\(--love-300\)\]/g, '')
+    .replace(/\bfocus:ring-4\b/g, '')
+    .replace(/\bfocus:ring-\[var\(--love-050\)\]\/70/g, '')
+
+  if (clearable) {
+    next = next.replace(/\bpx-4\b/g, 'pl-4 pr-14')
+  }
+
+  return next.replace(/\s+/g, ' ').trim()
+}
+
 export function SuggestionMenu({
   id,
   label,
   multiselect = false,
   connected = true,
+  stacked = false,
   children,
 }: {
   id: string
   label: string
   multiselect?: boolean
   connected?: boolean
+  /** Sit in normal flow under the chip row instead of covering it. */
+  stacked?: boolean
   children: ReactNode
 }) {
+  const className = stacked
+    ? 'relative z-30 mt-0 w-full max-w-full overflow-hidden border-t-2 border-[var(--ui-border)] bg-[var(--ui-surface)]'
+    : connected
+      ? 'absolute top-full right-0 left-0 z-30 w-full max-w-full overflow-hidden rounded-b-2xl border-2 border-[var(--ui-border)] border-t-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
+      : 'absolute top-full right-0 left-0 z-30 w-full max-w-full overflow-hidden rounded-2xl border-2 border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
+
   return (
     <div
       id={id}
       role="listbox"
       aria-label={label}
       aria-multiselectable={multiselect ? true : undefined}
-      className={
-        connected
-          ? 'absolute top-full right-0 left-0 z-30 w-full max-w-full overflow-hidden rounded-b-2xl border-2 border-[var(--ui-border)] border-t-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
-          : 'absolute top-full right-0 left-0 z-30 w-full max-w-full overflow-hidden rounded-2xl border-2 border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
-      }
+      className={className}
     >
       {children}
     </div>
