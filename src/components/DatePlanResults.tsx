@@ -141,10 +141,13 @@ const ResultImage = ({
   isExpanded: boolean
 }) => (
   <div
-    className={`${isExpanded ? 'h-48 w-full' : 'h-20 w-20'} shrink-0 overflow-hidden rounded-xl transition-all duration-300`}
+    className={`${isExpanded ? 'w-full' : 'h-20 w-20'} shrink-0 overflow-hidden rounded-xl transition-all duration-300`}
   >
     {place ? (
-      <PlaceImageCarousel photos={place.photos} />
+      <PlaceImageCarousel
+        photos={place.photos}
+        variant={isExpanded ? 'hero' : 'thumb'}
+      />
     ) : (
       <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--love-050)] to-[var(--ui-surface-soft)] text-xs font-bold tracking-[0.16em] text-[var(--love-700)] uppercase">
         AI
