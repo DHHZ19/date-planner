@@ -3,7 +3,9 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import AutocompleteMultiSelectField from '#/components/questions/fields/AutocompleteMultiSelectField'
+import AutocompleteMultiSelectField, {
+  groupSuggestionsByCategory,
+} from '#/components/questions/fields/AutocompleteMultiSelectField'
 import { baseFieldClassName } from '#/components/questions/fields/field-classes'
 import {
   connectFieldToMenu,
@@ -64,7 +66,26 @@ describe('connectFieldToMenu', () => {
     expect(embedded).toContain('bg-transparent')
     expect(embedded).not.toContain('ui-border')
     expect(embedded).not.toContain('focus:border')
+    expect(embedded).not.toContain('w-full')
+    expect(embedded).not.toContain('py-3')
     expect(embedded).toContain('pr-14')
+  })
+})
+
+describe('groupSuggestionsByCategory', () => {
+  it('keeps real categories in first-seen order and still labels a single type', () => {
+    expect(
+      groupSuggestionsByCategory(suggestions).map((group) => group.label),
+    ).toEqual(['Cuisine', 'Drink'])
+    expect(
+      groupSuggestionsByCategory(
+        [
+          { value: 'museum', label: 'Museum' },
+          { value: 'park', label: 'Park' },
+        ],
+        'Activity',
+      ).map((group) => group.label),
+    ).toEqual(['Activity'])
   })
 })
 
@@ -95,10 +116,10 @@ describe('AutocompleteMultiSelectField', () => {
 
     const options = screen.getAllByRole('option')
     expect(options[0]?.className).toContain('min-h-11')
-    expect(menu.querySelector('ul')?.className).toContain('40svh')
-    expect(menu.querySelector('ul')?.className).toContain(
-      'overscroll-y-contain',
-    )
+    expect(screen.getByRole('group', { name: 'Cuisine' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Drink' })).toBeTruthy()
+    const scroller = menu.querySelector('[class*="40svh"]')
+    expect(scroller?.className).toContain('overscroll-y-contain')
 
     fireEvent.keyDown(input, { key: 'ArrowDown' })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -111,19 +132,18 @@ describe('AutocompleteMultiSelectField', () => {
     fireEvent.click(input)
     const chip = screen.getByRole('button', { name: 'Remove Sushi' })
     const reopened = screen.getByRole('listbox', { name: 'Food suggestions' })
+    const field = input.parentElement
+    expect(field?.contains(chip)).toBe(true)
     expect(
-      input.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
+      chip.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(
-      chip.compareDocumentPosition(reopened) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
+    expect(reopened.previousElementSibling).toBe(field)
     const shell = reopened.parentElement
-    expect(shell).toBe(chip.closest('ul')?.parentElement)
     expect(shell?.contains(input)).toBe(true)
+    expect(shell?.contains(chip)).toBe(true)
     expect(shell?.className).toContain('rounded-2xl')
     expect(shell?.className).toContain('border-2')
-    expect(chip.closest('ul')?.className).toContain('border-t-2')
-    expect(chip.closest('ul')?.className).not.toContain('mt-2')
+    expect(chip.closest('ul')?.className).not.toContain('border-t')
     expect(reopened.className).toContain('relative')
     expect(reopened.className).toContain('mt-0')
     expect(reopened.className).toContain('border-t-2')
@@ -172,8 +192,9 @@ describe('AutocompleteMultiSelectField', () => {
 
     expect(screen.queryByRole('listbox')).toBeNull()
     expect(input).toHaveProperty('value', '')
+    expect(input.parentElement?.contains(chip)).toBe(true)
     expect(
-      input.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING,
+      chip.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     expect(onChange).toHaveBeenCalledWith('italian_restaurant')
   })

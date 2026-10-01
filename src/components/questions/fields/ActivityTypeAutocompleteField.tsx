@@ -28,6 +28,7 @@ export default function ActivityTypeAutocompleteField({
       suggestions={ACTIVITY_SUGGESTIONS}
       maxSelections={4}
       ariaLabel="Activity type suggestions"
+      uncategorizedSectionLabel="Activity"
       resetKey={resetKey}
       onChange={onChange}
     />

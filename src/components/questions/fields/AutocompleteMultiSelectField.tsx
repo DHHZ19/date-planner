@@ -36,6 +36,32 @@ export type AutocompleteSuggestion = {
   category?: string
 }
 
+export function groupSuggestionsByCategory(
+  suggestions: AutocompleteSuggestion[],
+  uncategorizedLabel = 'Suggestions',
+) {
+  const groups: {
+    label: string
+    items: { suggestion: AutocompleteSuggestion; index: number }[]
+  }[] = []
+  const byLabel = new Map<string, (typeof groups)[number]>()
+
+  suggestions.forEach((suggestion, index) => {
+    const label = suggestion.category?.trim() || uncategorizedLabel
+    const existing = byLabel.get(label)
+    if (existing) {
+      existing.items.push({ suggestion, index })
+      return
+    }
+
+    const group = { label, items: [{ suggestion, index }] }
+    byLabel.set(label, group)
+    groups.push(group)
+  })
+
+  return groups
+}
+
 export default function AutocompleteMultiSelectField({
   id,
   name,
@@ -48,6 +74,7 @@ export default function AutocompleteMultiSelectField({
   resetKey,
   onChange,
   className,
+  uncategorizedSectionLabel = 'Suggestions',
 }: {
   id: string
   name: string
@@ -60,6 +87,7 @@ export default function AutocompleteMultiSelectField({
   resetKey: number | string
   onChange: (value: string | undefined) => void
   className?: string
+  uncategorizedSectionLabel?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -331,23 +359,34 @@ export default function AutocompleteMultiSelectField({
             Done
           </button>
         </div>
-        <ul className="max-h-[min(15rem,40svh)] overflow-y-auto overscroll-y-contain py-1">
-          {filteredSuggestions.map((suggestion, index) => (
-            <SuggestionOption
-              key={suggestion.value}
-              id={`${id}-option-${index}`}
-              label={suggestion.label}
-              detail={suggestion.category}
-              selected={selectedSet.has(suggestion.value)}
-              active={index === activeIndex}
-              onHighlight={() => {
-                setActiveIndex(index)
-                setKeyboardNavigationActive(false)
-              }}
-              onSelect={() => selectSuggestion(suggestion.value)}
-            />
+        <div className="max-h-[min(15rem,40svh)] overflow-y-auto overscroll-y-contain py-1">
+          {groupSuggestionsByCategory(
+            filteredSuggestions,
+            uncategorizedSectionLabel,
+          ).map((group) => (
+            <div key={group.label} role="group" aria-label={group.label}>
+              <p className="px-3 pt-2 pb-0.5 text-xs font-semibold tracking-wide text-[var(--ui-text-muted)] uppercase">
+                {group.label}
+              </p>
+              <ul>
+                {group.items.map(({ suggestion, index }) => (
+                  <SuggestionOption
+                    key={suggestion.value}
+                    id={`${id}-option-${index}`}
+                    label={suggestion.label}
+                    selected={selectedSet.has(suggestion.value)}
+                    active={index === activeIndex}
+                    onHighlight={() => {
+                      setActiveIndex(index)
+                      setKeyboardNavigationActive(false)
+                    }}
+                    onSelect={() => selectSuggestion(suggestion.value)}
+                  />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
         {selectedValues.length >= maxSelections && (
           <div className="border-t border-[var(--ui-border)] bg-[var(--ui-surface-soft)] px-3 py-2 text-center text-xs text-[var(--ui-text-muted)]">
             Maximum {maxSelections} selections
@@ -358,7 +397,7 @@ export default function AutocompleteMultiSelectField({
 
   const selectedChips =
     selectedValues.length > 0 ? (
-      <ul className="flex flex-wrap gap-2 border-t-2 border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2">
+      <ul className="contents">
         {selectedValues.map((value) => {
           const label = labelFor(value)
           return (
@@ -380,7 +419,9 @@ export default function AutocompleteMultiSelectField({
 
   const clearable = selectedValues.length > 0 || currentInput.length > 0
   const fieldClassName = menuFollowsChips
-    ? embedFieldInShell(className ?? baseFieldClassName, { clearable })
+    ? `${embedFieldInShell(className ?? baseFieldClassName, {
+        clearable: false,
+      })} min-h-11 min-w-24 flex-1`
     : connectFieldToMenu(className ?? baseFieldClassName, {
         open: isOpen,
         clearable,
@@ -398,7 +439,14 @@ export default function AutocompleteMultiSelectField({
       onKeyDown={handleKeyDown}
     >
       <div className={joinedShellClassName}>
-        <div className="relative">
+        <div
+          className={
+            menuFollowsChips
+              ? 'relative flex min-h-11 flex-wrap items-center gap-2 px-3 py-2 pr-14'
+              : 'relative'
+          }
+        >
+          {menuFollowsChips ? selectedChips : null}
           <input
             ref={inputRef}
             id={id}
@@ -467,7 +515,6 @@ export default function AutocompleteMultiSelectField({
 
           {menuFollowsChips ? null : suggestionMenu}
         </div>
-        {selectedChips}
         {menuFollowsChips ? suggestionMenu : null}
       </div>
     </div>
