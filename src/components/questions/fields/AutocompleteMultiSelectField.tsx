@@ -105,6 +105,14 @@ export default function AutocompleteMultiSelectField({
   const previousResetKeyRef = useRef(resetKey)
   const localRawValueRef = useRef(buildRawValue(parseCsv(defaultValue), ''))
 
+  useEffect(() => {
+    const row = inputRef.current?.parentElement
+    if (!row || selectedValues.length === 0) {
+      return
+    }
+    row.scrollLeft = row.scrollWidth
+  }, [selectedValues])
+
   const emitChange = (nextRawValue: string) => {
     localRawValueRef.current = nextRawValue
     onChange(nextRawValue.length > 0 ? nextRawValue : undefined)
@@ -401,14 +409,14 @@ export default function AutocompleteMultiSelectField({
         {selectedValues.map((value) => {
           const label = labelFor(value)
           return (
-            <li key={value}>
+            <li key={value} className="shrink-0">
               <button
                 type="button"
                 aria-label={`Remove ${label}`}
-                className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-2xl border-2 border-[var(--love-900)] bg-[var(--love-700)] px-3 text-sm font-semibold text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]"
+                className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border-2 border-[var(--love-900)] bg-[var(--love-700)] px-3 text-sm font-semibold whitespace-nowrap text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]"
                 onClick={() => selectSuggestion(value)}
               >
-                <span className="truncate">{label}</span>
+                <span>{label}</span>
                 <span aria-hidden="true">×</span>
               </button>
             </li>
@@ -421,7 +429,7 @@ export default function AutocompleteMultiSelectField({
   const fieldClassName = menuFollowsChips
     ? `${embedFieldInShell(className ?? baseFieldClassName, {
         clearable: false,
-      })} min-h-11 min-w-24 flex-1`
+      })} h-11 min-h-0 min-w-24 shrink-0 flex-1`
     : connectFieldToMenu(className ?? baseFieldClassName, {
         open: isOpen,
         clearable,
@@ -439,77 +447,79 @@ export default function AutocompleteMultiSelectField({
       onKeyDown={handleKeyDown}
     >
       <div className={joinedShellClassName}>
-        <div
-          className={
-            menuFollowsChips
-              ? 'relative flex min-h-11 flex-wrap items-center gap-2 px-3 py-2 pr-14'
-              : 'relative'
-          }
-        >
-          {menuFollowsChips ? selectedChips : null}
-          <input
-            ref={inputRef}
-            id={id}
-            name={name}
-            key={`${id}-${resetKey}`}
-            className={`${fieldClassName} scroll-mt-4 scroll-mb-[40svh] sm:scroll-mb-6`}
-            type="text"
-            autoComplete="off"
-            aria-describedby={describedBy}
-            placeholder={
-              selectedValues.length > 0 ? 'Add another' : placeholder
-            }
-            value={currentInput}
-            role="combobox"
-            aria-autocomplete="list"
-            aria-expanded={isOpen}
-            aria-controls={`${id}-listbox`}
-            aria-activedescendant={
-              isOpen
-                ? activeIndex === filteredSuggestions.length
-                  ? `${id}-done`
-                  : `${id}-option-${activeIndex}`
+        <div className={menuFollowsChips ? 'relative h-14' : 'relative'}>
+          <div
+            className={
+              menuFollowsChips
+                ? 'flex h-14 min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain px-3 pr-14'
                 : undefined
             }
-            onFocus={(event) => {
-              if (window.matchMedia('(max-width: 639px)').matches) {
-                event.currentTarget.scrollIntoView({ block: 'start' })
+          >
+            {menuFollowsChips ? selectedChips : null}
+            <input
+              ref={inputRef}
+              id={id}
+              name={name}
+              key={`${id}-${resetKey}`}
+              className={`${fieldClassName} scroll-mt-4 scroll-mb-[40svh] sm:scroll-mb-6`}
+              type="text"
+              autoComplete="off"
+              aria-describedby={describedBy}
+              placeholder={
+                selectedValues.length > 0 ? 'Add another' : placeholder
               }
-              if (suppressNextOpenRef.current) {
-                suppressNextOpenRef.current = false
-                return
+              value={currentInput}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={isOpen}
+              aria-controls={`${id}-listbox`}
+              aria-activedescendant={
+                isOpen
+                  ? activeIndex === filteredSuggestions.length
+                    ? `${id}-done`
+                    : `${id}-option-${activeIndex}`
+                  : undefined
               }
-              setIsOpen(true)
-              setActiveIndex(0)
-              setKeyboardNavigationActive(false)
-            }}
-            onClick={() => {
-              setIsOpen(true)
-            }}
-            onBlur={() => {
-              // Keep the list open while focus moves inside the widget.
-              window.setTimeout(() => {
-                const activeElement = document.activeElement
-                if (
-                  activeElement &&
-                  containerRef.current?.contains(activeElement)
-                ) {
+              onFocus={(event) => {
+                if (window.matchMedia('(max-width: 639px)').matches) {
+                  event.currentTarget.scrollIntoView({ block: 'start' })
+                }
+                if (suppressNextOpenRef.current) {
+                  suppressNextOpenRef.current = false
                   return
                 }
-
-                setIsOpen(false)
+                setIsOpen(true)
+                setActiveIndex(0)
                 setKeyboardNavigationActive(false)
-              }, 100)
-            }}
-            onChange={(event) => {
-              const nextInput = event.target.value
-              setCurrentInput(nextInput)
-              emitChange(buildRawValue(selectedValues, nextInput))
-              setActiveIndex(0)
-              setKeyboardNavigationActive(false)
-              setIsOpen(true)
-            }}
-          />
+              }}
+              onClick={() => {
+                setIsOpen(true)
+              }}
+              onBlur={() => {
+                // Keep the list open while focus moves inside the widget.
+                window.setTimeout(() => {
+                  const activeElement = document.activeElement
+                  if (
+                    activeElement &&
+                    containerRef.current?.contains(activeElement)
+                  ) {
+                    return
+                  }
+
+                  setIsOpen(false)
+                  setKeyboardNavigationActive(false)
+                }, 100)
+              }}
+              onChange={(event) => {
+                const nextInput = event.target.value
+                setCurrentInput(nextInput)
+                emitChange(buildRawValue(selectedValues, nextInput))
+                setActiveIndex(0)
+                setKeyboardNavigationActive(false)
+                setIsOpen(true)
+              }}
+            />
+          </div>
 
           {clearable ? <ClearFieldButton onClick={clearValue} /> : null}
 

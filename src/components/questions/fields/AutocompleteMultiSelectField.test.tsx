@@ -132,12 +132,20 @@ describe('AutocompleteMultiSelectField', () => {
     fireEvent.click(input)
     const chip = screen.getByRole('button', { name: 'Remove Sushi' })
     const reopened = screen.getByRole('listbox', { name: 'Food suggestions' })
-    const field = input.parentElement
-    expect(field?.contains(chip)).toBe(true)
+    const chipRow = input.parentElement
+    expect(chipRow?.contains(chip)).toBe(true)
+    expect(chipRow?.className).toContain('overflow-x-auto')
+    expect(chipRow?.className).toContain('h-14')
+    expect(chipRow?.className).not.toContain('flex-wrap')
+    expect(chip.className).toContain('shrink-0')
+    expect(chip.className).toContain('whitespace-nowrap')
+    expect(chip.querySelector('span')?.className ?? '').not.toContain(
+      'truncate',
+    )
     expect(
       chip.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(reopened.previousElementSibling).toBe(field)
+    expect(reopened.previousElementSibling).toBe(chipRow?.parentElement)
     const shell = reopened.parentElement
     expect(shell?.contains(input)).toBe(true)
     expect(shell?.contains(chip)).toBe(true)
