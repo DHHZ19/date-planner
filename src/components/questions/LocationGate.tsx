@@ -4,6 +4,12 @@ import type * as Leaflet from 'leaflet'
 import { useNavigate } from '@tanstack/react-router'
 
 import { baseFieldClassName } from '#/components/questions/fields/field-classes'
+import {
+  ClearFieldButton,
+  SuggestionMenu,
+  SuggestionOption,
+  connectFieldToMenu,
+} from '#/components/questions/fields/SuggestionMenu'
 import { useCurrentLocation } from '#/components/questions/hooks/useCurrentLocation'
 import { useQuestionSearchState } from '#/components/questions/hooks/useQuestionSearchState'
 import { searchCities } from '#/server-functions'
@@ -493,7 +499,10 @@ export default function LocationGate({
                   type="text"
                   autoComplete="off"
                   placeholder="Start typing a city name"
-                  className={baseFieldClassName}
+                  className={connectFieldToMenu(baseFieldClassName, {
+                    open: isCitySearchOpen && cityQuery.trim().length >= 2,
+                    clearable: cityQuery.length > 0,
+                  })}
                   value={cityQuery}
                   role="combobox"
                   aria-autocomplete="list"
@@ -515,50 +524,49 @@ export default function LocationGate({
                   }}
                   onKeyDown={handleCityInputKeyDown}
                 />
+                {cityQuery.length > 0 ? (
+                  <ClearFieldButton
+                    label="Clear city"
+                    onClick={() => {
+                      setCityQuery('')
+                      setCitySuggestions([])
+                      setIsCitySearchOpen(false)
+                      setHighlightedCityIndex(-1)
+                    }}
+                  />
+                ) : null}
 
                 {isCitySearchOpen && cityQuery.trim().length >= 2 && (
-                  <div
+                  <SuggestionMenu
                     id="city-search-listbox"
-                    role="listbox"
-                    className="absolute top-[calc(100%+8px)] right-0 left-0 z-20 overflow-hidden rounded-md border border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-18px_rgba(126,31,61,0.22)]"
+                    label="City suggestions"
                   >
                     {isSearchingCities ? (
-                      <p className="px-3 py-2 text-sm/6 text-[var(--ui-text-muted)]">
+                      <p className="px-3 py-3 text-sm/6 text-[var(--ui-text-muted)]">
                         Searching cities...
                       </p>
                     ) : citySuggestions.length > 0 ? (
                       <ul className="max-h-60 overflow-auto py-1">
                         {citySuggestions.map((city, index) => (
-                          <li
+                          <SuggestionOption
                             key={`${city.label}-${city.latitude}-${city.longitude}`}
-                          >
-                            <button
-                              id={`city-search-option-${index}`}
-                              type="button"
-                              role="option"
-                              aria-selected={highlightedCityIndex === index}
-                              className={`w-full px-3 py-2 text-left text-sm transition ${
-                                highlightedCityIndex === index
-                                  ? 'bg-[var(--love-050)] text-[var(--love-900)]'
-                                  : 'text-[var(--ui-text)] hover:bg-[var(--ui-surface-soft)]'
-                              }`}
-                              onMouseDown={(event) => event.preventDefault()}
-                              onMouseEnter={() =>
-                                setHighlightedCityIndex(index)
-                              }
-                              onClick={() => handleSelectCity(city)}
-                            >
-                              {city.label}
-                            </button>
-                          </li>
+                            id={`city-search-option-${index}`}
+                            label={city.label}
+                            selected={
+                              selectedLocation?.locationLabel === city.label
+                            }
+                            active={highlightedCityIndex === index}
+                            onHighlight={() => setHighlightedCityIndex(index)}
+                            onSelect={() => handleSelectCity(city)}
+                          />
                         ))}
                       </ul>
                     ) : (
-                      <p className="px-3 py-2 text-sm/6 text-[var(--ui-text-muted)]">
+                      <p className="px-3 py-3 text-sm/6 text-[var(--ui-text-muted)]">
                         No city matches found.
                       </p>
                     )}
-                  </div>
+                  </SuggestionMenu>
                 )}
               </div>
               <p className="mt-1 text-xs/5 text-[var(--ui-text-muted)]">
@@ -599,7 +607,7 @@ export default function LocationGate({
             <label htmlFor="mobile-city-search" className="sr-only">
               Search by city
             </label>
-            <div className="flex items-center gap-2">
+            <div className="relative flex items-center gap-2">
               <svg
                 aria-hidden="true"
                 className="h-5 w-5 shrink-0 text-[var(--ui-text-muted)]"
@@ -619,7 +627,7 @@ export default function LocationGate({
                 type="text"
                 autoComplete="off"
                 placeholder="Search city"
-                className="min-h-9 w-full bg-transparent text-base font-semibold text-[var(--ui-text)] outline-none placeholder:font-semibold placeholder:text-[var(--ui-text-muted)]"
+                className={`min-h-11 w-full bg-transparent text-base font-semibold text-[var(--ui-text)] outline-none placeholder:font-semibold placeholder:text-[var(--ui-text-muted)] ${cityQuery.length > 0 ? 'pr-12' : ''}`}
                 value={cityQuery}
                 role="combobox"
                 aria-autocomplete="list"
@@ -641,50 +649,52 @@ export default function LocationGate({
                 }}
                 onKeyDown={handleCityInputKeyDown}
               />
-            </div>
+              {cityQuery.length > 0 ? (
+                <ClearFieldButton
+                  label="Clear city"
+                  onClick={() => {
+                    setCityQuery('')
+                    setCitySuggestions([])
+                    setIsCitySearchOpen(false)
+                    setHighlightedCityIndex(-1)
+                  }}
+                />
+              ) : null}
 
-            {isCitySearchOpen && cityQuery.trim().length >= 2 && (
-              <div
-                id="mobile-city-search-listbox"
-                role="listbox"
-                className="absolute top-[calc(100%+8px)] right-3 left-3 z-40 overflow-hidden rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-18px_rgba(126,31,61,0.22)]"
-              >
-                {isSearchingCities ? (
-                  <p className="px-3 py-2 text-sm/6 text-[var(--ui-text-muted)]">
-                    Searching cities...
-                  </p>
-                ) : citySuggestions.length > 0 ? (
-                  <ul className="max-h-56 overflow-auto py-1">
-                    {citySuggestions.map((city, index) => (
-                      <li
-                        key={`${city.label}-${city.latitude}-${city.longitude}`}
-                      >
-                        <button
+              {isCitySearchOpen && cityQuery.trim().length >= 2 && (
+                <SuggestionMenu
+                  id="mobile-city-search-listbox"
+                  label="City suggestions"
+                  connected={false}
+                >
+                  {isSearchingCities ? (
+                    <p className="px-3 py-3 text-sm/6 text-[var(--ui-text-muted)]">
+                      Searching cities...
+                    </p>
+                  ) : citySuggestions.length > 0 ? (
+                    <ul className="max-h-56 overflow-auto py-1">
+                      {citySuggestions.map((city, index) => (
+                        <SuggestionOption
+                          key={`${city.label}-${city.latitude}-${city.longitude}`}
                           id={`mobile-city-search-option-${index}`}
-                          type="button"
-                          role="option"
-                          aria-selected={highlightedCityIndex === index}
-                          className={`w-full px-3 py-2.5 text-left text-sm transition ${
-                            highlightedCityIndex === index
-                              ? 'bg-[var(--love-050)] text-[var(--love-900)]'
-                              : 'text-[var(--ui-text)] hover:bg-[var(--ui-surface-soft)]'
-                          }`}
-                          onMouseDown={(event) => event.preventDefault()}
-                          onMouseEnter={() => setHighlightedCityIndex(index)}
-                          onClick={() => handleSelectCity(city)}
-                        >
-                          {city.label}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="px-3 py-2 text-sm/6 text-[var(--ui-text-muted)]">
-                    No city matches found.
-                  </p>
-                )}
-              </div>
-            )}
+                          label={city.label}
+                          selected={
+                            selectedLocation?.locationLabel === city.label
+                          }
+                          active={highlightedCityIndex === index}
+                          onHighlight={() => setHighlightedCityIndex(index)}
+                          onSelect={() => handleSelectCity(city)}
+                        />
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="px-3 py-3 text-sm/6 text-[var(--ui-text-muted)]">
+                      No city matches found.
+                    </p>
+                  )}
+                </SuggestionMenu>
+              )}
+            </div>
           </div>
         </div>
 

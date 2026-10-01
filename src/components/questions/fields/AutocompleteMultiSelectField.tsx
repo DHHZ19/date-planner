@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 
 import { baseFieldClassName } from './field-classes'
+import {
+  ClearFieldButton,
+  SuggestionMenu,
+  SuggestionOption,
+  connectFieldToMenu,
+} from './SuggestionMenu'
 
 function parseCsv(value: string | undefined) {
   return (value ?? '')
@@ -62,12 +68,11 @@ export default function AutocompleteMultiSelectField({
   // Track what the user is currently typing after the last comma.
   const [currentInput, setCurrentInput] = useState('')
   const [isOpen, setIsOpen] = useState(false)
-  const [isInputFocused, setIsInputFocused] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [keyboardNavigationActive, setKeyboardNavigationActive] =
     useState(false)
-  const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const doneButtonRef = useRef<HTMLButtonElement | null>(null)
+  const suppressNextOpenRef = useRef(false)
   const previousResetKeyRef = useRef(resetKey)
   const localRawValueRef = useRef(buildRawValue(parseCsv(defaultValue), ''))
 
@@ -93,7 +98,6 @@ export default function AutocompleteMultiSelectField({
   }, [defaultValue, resetKey])
 
   const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues])
-  const canAddMoreSelections = selectedValues.length < maxSelections
 
   // Create a lookup map for value -> label
   const labelMap = useMemo(() => {
@@ -104,12 +108,7 @@ export default function AutocompleteMultiSelectField({
     return map
   }, [suggestions])
 
-  // Convert raw values to display labels for the input
-  const displayValue = useMemo(() => {
-    if (selectedValues.length === 0) return ''
-    const labels = selectedValues.map((v) => labelMap.get(v) ?? v)
-    return labels.join(', ')
-  }, [selectedValues, labelMap])
+  const labelFor = (value: string) => labelMap.get(value) ?? value
 
   // Filter suggestions based on current input (what user is typing now)
   const filteredSuggestions = useMemo(() => {
@@ -140,7 +139,7 @@ export default function AutocompleteMultiSelectField({
     emitChange(nextRawValue)
     setActiveIndex(0)
     setKeyboardNavigationActive(false)
-    window.requestAnimationFrame(() => inputRef.current?.focus())
+    setIsOpen(false)
   }
 
   useEffect(() => {
@@ -183,13 +182,9 @@ export default function AutocompleteMultiSelectField({
       return
     }
 
-    const totalOptions = filteredSuggestions.length
-    if (activeIndex === totalOptions) {
+    if (activeIndex === filteredSuggestions.length) {
       doneButtonRef.current?.scrollIntoView({ block: 'nearest' })
-      return
     }
-
-    optionRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' })
   }, [
     activeIndex,
     isOpen,
@@ -211,13 +206,17 @@ export default function AutocompleteMultiSelectField({
     selectSuggestion(filteredSuggestions[activeIndex].value)
   }
 
-  const inputValue =
-    displayValue +
-    (currentInput
-      ? (displayValue ? ', ' : '') + currentInput
-      : isInputFocused && canAddMoreSelections && displayValue
-        ? ', '
-        : '')
+  const clearValue = () => {
+    setSelectedValues([])
+    setCurrentInput('')
+    emitChange('')
+    setActiveIndex(0)
+    setIsOpen(false)
+    if (document.activeElement !== inputRef.current) {
+      suppressNextOpenRef.current = true
+      inputRef.current?.focus()
+    }
+  }
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
     const totalOptions = filteredSuggestions.length
@@ -295,18 +294,41 @@ export default function AutocompleteMultiSelectField({
 
   return (
     <div ref={containerRef} onKeyDown={handleKeyDown}>
+      {selectedValues.length > 0 ? (
+        <ul className="mb-2 flex flex-wrap gap-2">
+          {selectedValues.map((value) => {
+            const label = labelFor(value)
+            return (
+              <li key={value}>
+                <button
+                  type="button"
+                  aria-label={`Remove ${label}`}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-2xl border-2 border-[var(--love-900)] bg-[var(--love-700)] px-3 text-sm font-semibold text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]"
+                  onClick={() => selectSuggestion(value)}
+                >
+                  {label}
+                  <span aria-hidden="true">×</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
       <div className="relative">
         <input
           ref={inputRef}
           id={id}
           name={name}
           key={`${id}-${resetKey}`}
-          className={className ?? baseFieldClassName}
+          className={connectFieldToMenu(className ?? baseFieldClassName, {
+            open: isOpen,
+            clearable: selectedValues.length > 0 || currentInput.length > 0,
+          })}
           type="text"
           autoComplete="off"
           aria-describedby={describedBy}
-          placeholder={placeholder}
-          value={inputValue}
+          placeholder={selectedValues.length > 0 ? 'Add another' : placeholder}
+          value={currentInput}
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={isOpen}
@@ -319,10 +341,16 @@ export default function AutocompleteMultiSelectField({
               : undefined
           }
           onFocus={() => {
-            setIsInputFocused(true)
+            if (suppressNextOpenRef.current) {
+              suppressNextOpenRef.current = false
+              return
+            }
             setIsOpen(true)
             setActiveIndex(0)
             setKeyboardNavigationActive(false)
+          }}
+          onClick={() => {
+            setIsOpen(true)
           }}
           onBlur={() => {
             // Keep the list open while focus moves inside the widget.
@@ -336,46 +364,26 @@ export default function AutocompleteMultiSelectField({
               }
 
               setIsOpen(false)
-              setIsInputFocused(false)
               setKeyboardNavigationActive(false)
             }, 100)
           }}
-          onChange={(e) => {
-            const nextInputValue = e.target.value
-
-            const parts = nextInputValue.split(/,\s*/)
-            const lastPart = parts[parts.length - 1] ?? ''
-
-            const previousLabels = parts.slice(0, -1)
-            const previousRawValues = previousLabels
-              .map((label) => {
-                const trimmed = label.trim()
-                const suggestion = suggestions.find(
-                  (s) => s.label.toLowerCase() === trimmed.toLowerCase(),
-                )
-                return suggestion?.value ?? trimmed
-              })
-              .filter(Boolean)
-
-            setSelectedValues(previousRawValues)
-            setCurrentInput(lastPart)
-
-            const nextRawValue = buildRawValue(previousRawValues, lastPart)
-            emitChange(nextRawValue)
+          onChange={(event) => {
+            const nextInput = event.target.value
+            setCurrentInput(nextInput)
+            emitChange(buildRawValue(selectedValues, nextInput))
             setActiveIndex(0)
             setKeyboardNavigationActive(false)
+            setIsOpen(true)
           }}
         />
 
+        {selectedValues.length > 0 || currentInput.length > 0 ? (
+          <ClearFieldButton onClick={clearValue} />
+        ) : null}
+
         {isOpen && filteredSuggestions.length > 0 && (
-          <div
-            className="absolute top-[calc(100%+8px)] right-0 left-0 z-10 overflow-hidden rounded-md border border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-18px_rgba(126,31,61,0.22)]"
-            role="listbox"
-            id={`${id}-listbox`}
-            aria-multiselectable="true"
-            aria-label={ariaLabel}
-          >
-            <div className="flex items-center justify-between border-b border-[var(--ui-border)] px-3 py-2">
+          <SuggestionMenu id={`${id}-listbox`} label={ariaLabel} multiselect>
+            <div className="flex min-h-11 items-center justify-between border-b border-[var(--ui-border)] pr-1 pl-3">
               <p className="text-xs font-semibold tracking-wide text-[var(--ui-text-muted)] uppercase">
                 Suggestions
                 {selectedValues.length > 0 && (
@@ -388,64 +396,44 @@ export default function AutocompleteMultiSelectField({
                 id={`${id}-done`}
                 ref={doneButtonRef}
                 type="button"
-                aria-selected={activeIndex === filteredSuggestions.length}
-                className="cursor-pointer text-sm font-semibold text-[var(--love-700)] transition hover:text-[var(--love-900)]"
-                onMouseDown={(e) => e.preventDefault()}
+                className={`min-h-11 cursor-pointer rounded-xl px-3 text-sm font-semibold text-[var(--love-700)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)] ${
+                  activeIndex === filteredSuggestions.length
+                    ? 'bg-[var(--love-050)] text-[var(--love-900)]'
+                    : 'hover:text-[var(--love-900)]'
+                }`}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => {
+                  setActiveIndex(filteredSuggestions.length)
+                  setKeyboardNavigationActive(true)
+                }}
                 onClick={() => setIsOpen(false)}
               >
                 Done
               </button>
             </div>
             <ul className="max-h-60 overflow-auto py-1">
-              {filteredSuggestions.map((s, index) => {
-                const selected = selectedSet.has(s.value)
-                return (
-                  <li key={s.value}>
-                    <button
-                      id={`${id}-option-${index}`}
-                      ref={(node) => {
-                        optionRefs.current[index] = node
-                      }}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      className={
-                        selected
-                          ? 'w-full cursor-pointer bg-gradient-to-b from-[#a33a4a] to-[#7e1f3d] px-3 py-2 text-left text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--love-300)]'
-                          : index === activeIndex
-                            ? 'w-full cursor-pointer bg-[var(--ui-surface-soft)] px-3 py-2 text-left text-[var(--ui-text)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--love-300)]'
-                            : 'w-full cursor-pointer px-3 py-2 text-left text-[var(--ui-text)] transition hover:bg-[var(--ui-surface-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--love-300)]'
-                      }
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        selectSuggestion(s.value)
-                      }}
-                    >
-                      <span className="flex items-center justify-between">
-                        <span>{s.label}</span>
-                        {s.category && (
-                          <span
-                            className={
-                              selected
-                                ? 'text-xs text-white/70'
-                                : 'text-xs text-[var(--ui-text-muted)]'
-                            }
-                          >
-                            {s.category}
-                          </span>
-                        )}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
+              {filteredSuggestions.map((suggestion, index) => (
+                <SuggestionOption
+                  key={suggestion.value}
+                  id={`${id}-option-${index}`}
+                  label={suggestion.label}
+                  detail={suggestion.category}
+                  selected={selectedSet.has(suggestion.value)}
+                  active={index === activeIndex}
+                  onHighlight={() => {
+                    setActiveIndex(index)
+                    setKeyboardNavigationActive(false)
+                  }}
+                  onSelect={() => selectSuggestion(suggestion.value)}
+                />
+              ))}
             </ul>
             {selectedValues.length >= maxSelections && (
               <div className="border-t border-[var(--ui-border)] bg-[var(--ui-surface-soft)] px-3 py-2 text-center text-xs text-[var(--ui-text-muted)]">
                 Maximum {maxSelections} selections
               </div>
             )}
-          </div>
+          </SuggestionMenu>
         )}
       </div>
     </div>
