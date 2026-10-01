@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import type { NearbyPlace } from '#/types/index-route.types'
 import { PlaceImageCarousel } from '#/components/PlaceImageCarousel'
+import { safeHttpsUrl, safeProviderUrl } from '#/lib/plan-security'
 
 function PlacesList({
   title,
@@ -23,7 +24,9 @@ function PlacesList({
       </h4>
       <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
         {places.map((place) => {
-          const placeLink = place.websiteUri ?? place.googleMapsUri
+          const placeLink =
+            safeHttpsUrl(place.websiteUri) ??
+            safeProviderUrl(place.googleMapsUri)
 
           return (
             <li

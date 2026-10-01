@@ -43,6 +43,30 @@ export type AiWebSearchResult = {
   whyDateFriendly?: string | null
 }
 
+export type DatePlanNoticeCode =
+  | 'events_unavailable'
+  | 'events_empty'
+  | 'events_error'
+  | 'events_widened'
+  | 'provider_failed'
+  | 'filters_relaxed'
+
+export type DatePlanNotice = {
+  code: DatePlanNoticeCode
+  message: string
+}
+
+export type PlanShareStatus = {
+  planId: string | null
+  shareable: boolean
+  reason:
+    | 'ok'
+    | 'missing_place'
+    | 'missing_event'
+    | 'insufficient_categories'
+    | 'store_unavailable'
+}
+
 export type DatePlanResponse = ValidateSerializableInput<
   Register,
   {
@@ -52,6 +76,8 @@ export type DatePlanResponse = ValidateSerializableInput<
     events: NearbyPlace[]
     aiWebSearchResults: AiWebSearchResult[]
     searchState?: SearchState
+    notices?: DatePlanNotice[]
+    share?: PlanShareStatus
   }
 >
 
@@ -67,7 +93,7 @@ export type ActivitySearchMode = 'browse' | 'specific'
 
 export type PlanType = 'restaurant' | 'date_vibe' | 'activity' | 'event'
 
-export type ActivityIdeaCount = '3' | '5' | '8' | '10'
+export type ActivityIdeaCount = '3' | '5' | '8' | '10' | '12' | '15' | '20'
 
 export type ActivityBrowseCategory =
   | 'popular_date_spots'

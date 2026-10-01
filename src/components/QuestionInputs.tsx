@@ -74,9 +74,17 @@ export const QuestionInputs = ({
       })
 
       setTimeout(() => {
-        startSafeViewTransition(() =>
-          navigate({ to: '/results', search: (prev) => prev }),
-        )
+        startSafeViewTransition(() => {
+          if (result.share.planId) {
+            navigate({
+              to: '/p/$planId',
+              params: { planId: result.share.planId },
+            })
+            return
+          }
+
+          navigate({ to: '/results', search: (prev) => prev })
+        })
       }, 2000)
     }
   }
