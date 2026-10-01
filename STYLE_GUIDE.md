@@ -13,11 +13,11 @@ This document describes the visual design system used across the Date Planner ap
 
 ## Color tokens (CSS custom properties)
 
-All tokens are defined in `:root` and overridden in `[data-theme='dark']` and `prefers-color-scheme: dark` in `src/styles.css`. The palette is warm and rose-toned throughout -- there are no green accent colors.
+All tokens are defined in `:root` in `src/styles.css`. The app is light-only. The palette is warm and rose-toned throughout -- there are no green accent colors.
 
 ### Semantic UI tokens (preferred)
 
-Use these in component code. They auto-adapt to light/dark mode.
+Use these in component code.
 
 | Token               | Light value | Purpose                    |
 | ------------------- | ----------- | -------------------------- |
@@ -156,8 +156,6 @@ transition hover:text-[var(--love-900)]
 - **Hover lift:** Interactive elements use `hover:-translate-y-0.5` with `transition duration-200`.
 - **Global transition:** Buttons, `.island-shell`, and links share a `180ms ease` transition on `background-color`, `color`, `border-color`, and `transform`.
 
-## Dark mode
+## Theme
 
-- Theme is toggled via `data-theme="light|dark"` on `<html>`, with `auto` falling back to `prefers-color-scheme`.
-- All `--ui-*` tokens have dark overrides. Components using these tokens adapt automatically.
-- The selected-state chip gradient (`from-[#a33a4a] to-[#7e1f3d]`) and primary button gradient are hard-coded hex. These still look correct in dark mode but don't lighten; future work could add dark-mode overrides if needed.
+The app is light-only. Do not add a theme toggle, `dark:` variants, or `prefers-color-scheme: dark` overrides. `color-scheme: light` is set on `:root`.

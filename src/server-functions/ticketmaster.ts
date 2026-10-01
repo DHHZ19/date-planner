@@ -321,26 +321,39 @@ const getTimeWindowForDateTime = (
   return { start, end }
 }
 
-export const fetchTicketmasterEvents = async ({
+export type TicketmasterFetchStatus =
+  | 'ok'
+  | 'empty'
+  | 'unavailable'
+  | 'error'
+  | 'widened'
+  | 'skipped'
+
+export type TicketmasterFetchResult = {
+  events: NearbyPlace[]
+  status: TicketmasterFetchStatus
+}
+
+const EVENT_SEARCH_WIDEN_DAYS = 7
+
+const buildTicketmasterParams = ({
+  apiKey,
   latitude,
   longitude,
   radiusMiles,
-  dateTime,
   keyword,
+  start,
+  end,
 }: {
+  apiKey: string
   latitude: number
   longitude: number
   radiusMiles: string
-  dateTime: DateTimeOption
   keyword?: string
-}): Promise<NearbyPlace[]> => {
+  start?: Date
+  end?: Date
+}) => {
   const radius = Number(radiusMiles)
-  const apiKey = process.env.TICKETMASTER_API_KEY
-
-  if (!apiKey) {
-    return []
-  }
-
   const params = new URLSearchParams({
     apikey: apiKey,
     size: '10',
@@ -357,51 +370,122 @@ export const fetchTicketmasterEvents = async ({
     params.set('unit', 'miles')
   }
 
-  const timeWindow = getTimeWindowForDateTime(dateTime)
-  if (timeWindow) {
-    const localStart = formatLocalISOString(timeWindow.start)
-    const localEnd = formatLocalISOString(timeWindow.end)
-    // Filter event where event local start and end date overlap this range
-    params.set('localStartEndDateTime', `${localStart},${localEnd}`)
+  if (start && end) {
+    params.set(
+      'localStartEndDateTime',
+      `${formatLocalISOString(start)},${formatLocalISOString(end)}`,
+    )
   }
 
+  return params
+}
+
+const searchTicketmasterEvents = async (params: URLSearchParams) => {
   const cacheParams = Object.fromEntries(
     Array.from(params.entries()).filter(([key]) => key !== 'apikey'),
   )
 
-  let data: { _embedded?: { events?: TicketmasterEvent[] } }
-  try {
-    data = await getOrSetApiCache<{
-      _embedded?: { events?: TicketmasterEvent[] }
-    }>({
-      namespace: 'ticketmaster:events',
-      keyParts: {
-        version: 1,
-        endpoint: 'ticketmaster-events',
-        params: cacheParams,
-      },
-      ttlSeconds: TICKETMASTER_EVENTS_CACHE_TTL_SECONDS,
-      fetchFresh: async () => {
-        const res = await fetch(
-          `${TICKETMASTER_EVENT_SEARCH_URL}?${params.toString()}`,
-        )
-        if (!res.ok) {
-          throw new Error(`Ticketmaster events failed (${res.status})`)
-        }
+  const data = await getOrSetApiCache<{
+    _embedded?: { events?: TicketmasterEvent[] }
+  }>({
+    namespace: 'ticketmaster:events',
+    keyParts: {
+      version: 2,
+      endpoint: 'ticketmaster-events',
+      params: cacheParams,
+    },
+    ttlSeconds: TICKETMASTER_EVENTS_CACHE_TTL_SECONDS,
+    fetchFresh: async () => {
+      const res = await fetch(
+        `${TICKETMASTER_EVENT_SEARCH_URL}?${params.toString()}`,
+      )
+      if (!res.ok) {
+        throw new Error(`Ticketmaster events failed (${res.status})`)
+      }
 
-        return (await res.json()) as {
-          _embedded?: { events?: TicketmasterEvent[] }
-        }
-      },
-    })
-  } catch (error) {
-    console.warn('[ticketmaster] Event search failed', {
-      message: error instanceof Error ? error.message : String(error),
-    })
-    return []
-  }
+      return (await res.json()) as {
+        _embedded?: { events?: TicketmasterEvent[] }
+      }
+    },
+  })
 
   return (data._embedded?.events ?? [])
     .map(toTicketmasterNearbyPlace)
     .filter((place): place is NearbyPlace => Boolean(place))
+}
+
+export const fetchTicketmasterEvents = async ({
+  latitude,
+  longitude,
+  radiusMiles,
+  dateTime,
+  keyword,
+}: {
+  latitude: number
+  longitude: number
+  radiusMiles: string
+  dateTime: DateTimeOption
+  keyword?: string
+}): Promise<TicketmasterFetchResult> => {
+  const apiKey = process.env.TICKETMASTER_API_KEY
+
+  if (!apiKey) {
+    console.warn(
+      '[ticketmaster] TICKETMASTER_API_KEY is not set; event results are unavailable',
+    )
+    return { events: [], status: 'unavailable' }
+  }
+
+  const timeWindow = getTimeWindowForDateTime(dateTime)
+  const widenedStart = new Date()
+  const widenedEnd = new Date(
+    widenedStart.getTime() + EVENT_SEARCH_WIDEN_DAYS * 24 * 60 * 60 * 1000,
+  )
+  const trimmedKeyword = keyword?.trim() || undefined
+
+  const runSearch = (searchKeyword: string | undefined, widen: boolean) => {
+    return searchTicketmasterEvents(
+      buildTicketmasterParams({
+        apiKey,
+        latitude,
+        longitude,
+        radiusMiles,
+        keyword: searchKeyword,
+        start: widen ? widenedStart : timeWindow?.start,
+        end: widen ? widenedEnd : timeWindow?.end,
+      }),
+    )
+  }
+
+  try {
+    let events = await runSearch(trimmedKeyword, false)
+    if (events.length === 0 && trimmedKeyword) {
+      console.info(
+        '[ticketmaster] keyword search returned no events; retrying without keyword',
+        { dateTime },
+      )
+      events = await runSearch(undefined, false)
+    }
+
+    if (events.length > 0) {
+      return { events, status: 'ok' }
+    }
+
+    const widenedEvents = await runSearch(undefined, true)
+    if (widenedEvents.length > 0) {
+      console.info(
+        '[ticketmaster] selected time window returned no events; using 7-day fallback',
+        { dateTime },
+      )
+      return { events: widenedEvents, status: 'widened' }
+    }
+
+    console.info('[ticketmaster] no events found', { dateTime })
+    return { events: [], status: 'empty' }
+  } catch (error) {
+    console.warn('[ticketmaster] Event search failed', {
+      message: error instanceof Error ? error.message : String(error),
+    })
+    return { events: [], status: 'error' }
+  }
 }

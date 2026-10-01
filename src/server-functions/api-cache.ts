@@ -74,12 +74,18 @@ const logApiCache = (
   console.info(`[api-cache] ${event}`, { namespace })
 }
 
-const getRedisClient = async () => {
+export const getRedisClient = async () => {
   const redisUrl = process.env.REDIS_URL
-  if (!redisUrl || !isApiCacheEnabled()) return null
+  if (!redisUrl) return null
 
   if (!redisClientPromise) {
-    const client = createClient({ url: redisUrl })
+    const client = createClient({
+      url: redisUrl,
+      disableOfflineQueue: true,
+      socket: {
+        connectTimeout: 2000,
+      },
+    })
     client.on('error', (error) => {
       console.warn('[api-cache] Redis client error; using live API fallback', {
         message: error instanceof Error ? error.message : String(error),

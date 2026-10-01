@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResultsRouteImport } from './routes/results'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PPlanIdRouteImport } from './routes/p/$planId'
 
 const ResultsRoute = ResultsRouteImport.update({
   id: '/results',
@@ -28,35 +29,44 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PPlanIdRoute = PPlanIdRouteImport.update({
+  id: '/p/$planId',
+  path: '/p/$planId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/results': typeof ResultsRoute
+  '/p/$planId': typeof PPlanIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/results': typeof ResultsRoute
+  '/p/$planId': typeof PPlanIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/results': typeof ResultsRoute
+  '/p/$planId': typeof PPlanIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/results'
+  fullPaths: '/' | '/about' | '/results' | '/p/$planId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/results'
-  id: '__root__' | '/' | '/about' | '/results'
+  to: '/' | '/about' | '/results' | '/p/$planId'
+  id: '__root__' | '/' | '/about' | '/results' | '/p/$planId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   ResultsRoute: typeof ResultsRoute
+  PPlanIdRoute: typeof PPlanIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/p/$planId': {
+      id: '/p/$planId'
+      path: '/p/$planId'
+      fullPath: '/p/$planId'
+      preLoaderRoute: typeof PPlanIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   ResultsRoute: ResultsRoute,
+  PPlanIdRoute: PPlanIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

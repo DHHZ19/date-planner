@@ -117,9 +117,17 @@ export function QuickBrowse() {
       audio.volume = 0.5
       audio.play().catch(() => {})
 
-      startSafeViewTransition(() =>
-        navigate({ to: '/results', search: (prev) => prev }),
-      )
+      startSafeViewTransition(() => {
+        if (result.share.planId) {
+          navigate({
+            to: '/p/$planId',
+            params: { planId: result.share.planId },
+          })
+          return
+        }
+
+        navigate({ to: '/results', search: (prev) => prev })
+      })
     }
   }
 

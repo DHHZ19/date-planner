@@ -1,16 +1,38 @@
 import { usePhotoMedia } from '#/lib/hooks/usePhotoMedia'
+import {
+  plainTextFromHtml,
+  safeProviderUrl,
+  sanitizeImageSrc,
+  sanitizePhotoName,
+} from '#/lib/plan-security'
 import type { protos } from '@googlemaps/places'
 
 type Photo = protos.google.maps.places.v1.IPhoto
 
+type PhotoAttribution = {
+  displayName?: string | null
+  uri?: string | null
+  photoUri?: string | null
+  htmlAttribution?: string | null
+}
+
 function PlacePhoto({ photo }: { photo: Photo }) {
-  const isDirectUrl = photo.name?.startsWith('http')
+  const photoName = sanitizePhotoName(photo.name)
+  const isDirectUrl = photoName?.startsWith('https://') ?? false
   const { data: photoUriData, isLoading } = usePhotoMedia({
-    name: isDirectUrl ? undefined : photo.name,
+    name: isDirectUrl ? undefined : photoName,
     maxWidthPx: 800,
   })
 
-  const photoUri = isDirectUrl ? photo.name : photoUriData
+  const photoUri = sanitizeImageSrc(isDirectUrl ? photoName : photoUriData)
+  const attributions = (photo.authorAttributions ?? []).flatMap((attr, idx) => {
+    const credit = attr as PhotoAttribution
+    const displayName =
+      credit.displayName?.trim() || plainTextFromHtml(credit.htmlAttribution)
+    const uri = safeProviderUrl(credit.uri)
+    if (!displayName && !uri) return []
+    return [{ key: idx, displayName, uri }]
+  })
 
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-t-xl border-b border-[var(--ui-border)] bg-[var(--ui-surface-soft)]">
@@ -31,16 +53,23 @@ function PlacePhoto({ photo }: { photo: Photo }) {
         </div>
       )}
 
-      {/* Attribution overlay */}
-      {photo.authorAttributions && photo.authorAttributions.length > 0 && (
+      {attributions.length > 0 && (
         <div className="absolute right-0 bottom-0 left-0 bg-black/40 px-3 py-1.5 text-[10px] text-white backdrop-blur-[2px]">
-          {photo.authorAttributions.map((attr, idx) => (
-            <span
-              key={idx}
-              dangerouslySetInnerHTML={{ __html: attr.htmlAttribution || '' }}
-              className="[&_a]:underline"
-            />
-          ))}
+          {attributions.map((attr) =>
+            attr.uri ? (
+              <a
+                key={attr.key}
+                href={attr.uri}
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                {attr.displayName ?? 'Photo credit'}
+              </a>
+            ) : (
+              <span key={attr.key}>{attr.displayName}</span>
+            ),
+          )}
         </div>
       )}
     </div>
