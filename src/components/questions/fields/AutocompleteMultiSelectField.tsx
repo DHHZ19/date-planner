@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+
+import {
+  scrollDeltaToVisualTop,
+  suggestionListMaxPx,
+} from '#/lib/keyboard-obstruction'
 
 import { baseFieldClassName } from './field-classes'
 import {
@@ -30,21 +35,32 @@ function normalizeRawValue(value: string | undefined) {
   return value ?? ''
 }
 
-function scrollControlAboveKeyboard(element: HTMLElement) {
-  if (!window.matchMedia('(max-width: 639px)').matches) {
-    return
-  }
+const NARROW_QUERY = '(max-width: 639px)'
+const FIELD_TOP_MARGIN = 12
 
+function readVisualViewport() {
   const viewport = window.visualViewport
-  if (!viewport) {
-    element.scrollIntoView({ block: 'start' })
-    return
-  }
+  const height = viewport?.height ?? window.innerHeight
+  const offsetTop = viewport?.offsetTop ?? 0
 
-  const delta = element.getBoundingClientRect().top - viewport.offsetTop - 12
-  if (Math.abs(delta) > 1) {
-    window.scrollBy({ top: delta })
+  return {
+    height,
+    offsetTop,
+    inset: window.innerHeight - height - offsetTop,
   }
+}
+
+/** The focused field often sits near the end of the page, so a keyboard inset leaves no room to scroll it above the keyboard. */
+function ensureScrollRoom(delta: number) {
+  if (delta <= 2) return
+
+  const root = document.documentElement
+  const maxScroll = root.scrollHeight - window.innerHeight
+  const shortfall = window.scrollY + delta - maxScroll
+  if (shortfall <= 0) return
+
+  const current = Number.parseFloat(root.style.paddingBottom) || 0
+  root.style.paddingBottom = `${Math.ceil(current + shortfall + 8)}px`
 }
 
 export type AutocompleteSuggestion = {
@@ -239,45 +255,89 @@ export default function AutocompleteMultiSelectField({
     filteredSuggestions.length,
   ])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isOpen) {
       setMenuMaxPx(null)
       return
     }
 
-    const update = () => {
-      const anchor = containerRef.current
-      if (anchor) {
-        scrollControlAboveKeyboard(anchor)
-      }
+    const root = document.documentElement
+    const previousAnchor = root.style.overflowAnchor
+    const previousPadding = root.style.paddingBottom
+    root.style.overflowAnchor = 'none'
 
-      const narrow = window.matchMedia('(max-width: 639px)').matches
-      const viewport = window.visualViewport
+    let timer = 0
+    let adjusting = false
+    // At most two scrolls: one as the menu opens, one after the keyboard
+    // animation. A reversing delta of the same size is the offsetTop feedback
+    // loop, and it is dropped instead of applied.
+    let scrolls = 0
+    let appliedDelta = 0
+
+    const place = () => {
+      const container = containerRef.current
       const input = inputRef.current
-      if (!narrow || !viewport || !input) {
-        setMenuMaxPx(null)
+      if (!container || !input || !window.matchMedia(NARROW_QUERY).matches) {
+        setMenuMaxPx((current) => (current == null ? current : null))
         return
       }
 
-      const chipRow = anchor?.querySelector('[data-selected-chips]')
-      const contentBottom =
-        chipRow?.getBoundingClientRect().bottom ??
-        input.getBoundingClientRect().bottom
-      const available =
-        viewport.offsetTop + viewport.height - contentBottom - 16
-      setMenuMaxPx(Math.max(120, Math.min(240, available)))
+      adjusting = true
+      const before = readVisualViewport()
+      const delta = scrollDeltaToVisualTop({
+        elementTop: input.getBoundingClientRect().top,
+        offsetTop: before.offsetTop,
+        margin: FIELD_TOP_MARGIN,
+      })
+      const reversesAppliedScroll =
+        scrolls > 0 &&
+        Math.sign(delta) !== Math.sign(appliedDelta) &&
+        Math.abs(Math.abs(delta) - Math.abs(appliedDelta)) < 24
+      if (Math.abs(delta) > 2 && scrolls < 2 && !reversesAppliedScroll) {
+        scrolls += 1
+        appliedDelta = delta
+        ensureScrollRoom(delta)
+        window.scrollBy(0, delta)
+      } else if (reversesAppliedScroll) {
+        scrolls = 2
+      }
+
+      const header = container.querySelector('[data-suggestion-header]')
+      const chipRow = container.querySelector('[data-selected-chips]')
+      const listTop =
+        header instanceof HTMLElement
+          ? header.getBoundingClientRect().bottom
+          : chipRow instanceof HTMLElement
+            ? chipRow.getBoundingClientRect().bottom
+            : input.getBoundingClientRect().bottom
+      const after = readVisualViewport()
+      const next = suggestionListMaxPx({
+        visualHeight: after.height,
+        listTop,
+        offsetTop: after.offsetTop,
+        keyboardInset: after.inset,
+      })
+      setMenuMaxPx((current) => (Object.is(current, next) ? current : next))
+      adjusting = false
     }
 
-    update()
+    // Keyboard animation emits a burst of resizes. Wait until it settles,
+    // then place once. Scroll events are ignored on purpose.
+    const schedule = () => {
+      if (adjusting) return
+      window.clearTimeout(timer)
+      timer = window.setTimeout(place, 200)
+    }
+
+    place()
     const viewport = window.visualViewport
-    viewport?.addEventListener('resize', update)
-    viewport?.addEventListener('scroll', update)
-    const later = window.setTimeout(update, 300)
+    viewport?.addEventListener('resize', schedule)
 
     return () => {
-      viewport?.removeEventListener('resize', update)
-      viewport?.removeEventListener('scroll', update)
-      window.clearTimeout(later)
+      window.clearTimeout(timer)
+      viewport?.removeEventListener('resize', schedule)
+      root.style.overflowAnchor = previousAnchor
+      root.style.paddingBottom = previousPadding
     }
   }, [isOpen, selectedValues.length])
 
@@ -391,7 +451,10 @@ export default function AutocompleteMultiSelectField({
         stacked={menuFollowsChips}
         connected={!menuFollowsChips}
       >
-        <div className="flex min-h-11 items-center justify-between border-b border-[var(--ui-border)] pr-1 pl-3">
+        <div
+          data-suggestion-header
+          className="flex min-h-11 items-center justify-between border-b border-[var(--ui-border)] pr-1 pl-3"
+        >
           <p className="text-xs font-semibold tracking-wide text-[var(--ui-text-muted)] uppercase">
             Suggestions
             {selectedValues.length > 0 && (
@@ -420,6 +483,7 @@ export default function AutocompleteMultiSelectField({
           </button>
         </div>
         <div
+          data-suggestion-scroller
           className="max-h-[min(15rem,40svh)] overflow-y-auto overscroll-y-contain py-1"
           style={menuMaxPx == null ? undefined : { maxHeight: menuMaxPx }}
         >
@@ -509,7 +573,7 @@ export default function AutocompleteMultiSelectField({
             id={id}
             name={name}
             key={`${id}-${resetKey}`}
-            className={`${fieldClassName} scroll-mt-4 scroll-mb-[40svh] sm:scroll-mb-6`}
+            className={`${fieldClassName} scroll-mt-3`}
             type="text"
             autoComplete="off"
             aria-describedby={describedBy}
@@ -529,11 +593,6 @@ export default function AutocompleteMultiSelectField({
                 : undefined
             }
             onFocus={() => {
-              const anchor = containerRef.current
-              if (anchor) {
-                scrollControlAboveKeyboard(anchor)
-                window.setTimeout(() => scrollControlAboveKeyboard(anchor), 300)
-              }
               if (suppressNextOpenRef.current) {
                 suppressNextOpenRef.current = false
                 return

@@ -12,6 +12,57 @@ export function keyboardObstructsForm({
   return narrow && (editing || keyboardInset > 120)
 }
 
+/** iOS draws a ~44px accessory bar above the keyboard. Reserve it when the inset is real. */
+export const KEYBOARD_ACCESSORY_SAFETY_PX = 48
+
+/** Layout-viewport client edge, as a distance from the visual viewport top. */
+export function visualViewportEdge(edge: number, offsetTop: number) {
+  return edge - offsetTop
+}
+
+/**
+ * One scroll that puts the field `margin` px below the visual viewport top.
+ * A second call is 0 when `offsetTop` stays put, so this must not run from a
+ * visualViewport scroll listener (that listener is what thrashes the page).
+ */
+export function scrollDeltaToVisualTop({
+  elementTop,
+  offsetTop,
+  margin,
+}: {
+  elementTop: number
+  offsetTop: number
+  margin: number
+}) {
+  return visualViewportEdge(elementTop, offsetTop) - margin
+}
+
+/**
+ * Height for the suggestion scroller. `listTop` is the header's bottom edge,
+ * so the "Suggestions" row is already outside this budget. No minimum floor:
+ * a 120px floor is what painted options under the keyboard.
+ */
+export function suggestionListMaxPx({
+  visualHeight,
+  listTop,
+  offsetTop,
+  keyboardInset,
+  maxHeight = 240,
+}: {
+  visualHeight: number
+  listTop: number
+  offsetTop: number
+  keyboardInset: number
+  maxHeight?: number
+}) {
+  const safety = keyboardInset > 80 ? KEYBOARD_ACCESSORY_SAFETY_PX : 8
+  const available = Math.floor(
+    visualHeight - visualViewportEdge(listTop, offsetTop) - safety,
+  )
+  if (available <= 0) return 0
+  return Math.min(maxHeight, available)
+}
+
 function isEditingElement(element: Element | null) {
   return (
     element instanceof HTMLInputElement ||

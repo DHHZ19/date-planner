@@ -108,8 +108,18 @@ export function SuggestionOption({
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    if (active) {
-      buttonRef.current?.scrollIntoView({ block: 'nearest' })
+    const button = buttonRef.current
+    if (!active || !button) return
+
+    const scroller = button.closest('[data-suggestion-scroller]')
+    if (!(scroller instanceof HTMLElement)) return
+
+    const elementRect = button.getBoundingClientRect()
+    const scrollerRect = scroller.getBoundingClientRect()
+    if (elementRect.bottom > scrollerRect.bottom) {
+      scroller.scrollTop += elementRect.bottom - scrollerRect.bottom
+    } else if (elementRect.top < scrollerRect.top) {
+      scroller.scrollTop -= scrollerRect.top - elementRect.top
     }
   }, [active])
 
