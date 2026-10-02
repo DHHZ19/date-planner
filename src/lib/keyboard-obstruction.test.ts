@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   keyboardObstructsForm,
+  scrollDeltaAboveKeyboard,
   scrollDeltaToVisualTop,
   suggestionListMaxPx,
 } from '#/lib/keyboard-obstruction'
@@ -54,6 +55,30 @@ describe('scrollDeltaToVisualTop', () => {
         margin,
       }),
     ).toBe(0)
+  })
+})
+
+describe('scrollDeltaAboveKeyboard', () => {
+  it('leaves a list that already sits above the keyboard', () => {
+    expect(
+      scrollDeltaAboveKeyboard({
+        elementTop: 24,
+        elementBottom: 220,
+        offsetTop: 0,
+        visualHeight: 360,
+      }),
+    ).toBe(0)
+  })
+
+  it('scrolls a covered list up to the visual top', () => {
+    expect(
+      scrollDeltaAboveKeyboard({
+        elementTop: 500,
+        elementBottom: 740,
+        offsetTop: 40,
+        visualHeight: 360,
+      }),
+    ).toBe(448)
   })
 })
 

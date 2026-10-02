@@ -25,6 +25,30 @@ export function visualViewportEdge(edge: number, offsetTop: number) {
  * A second call is 0 when `offsetTop` stays put, so this must not run from a
  * visualViewport scroll listener (that listener is what thrashes the page).
  */
+/**
+ * Scroll needed to keep a box inside the visual viewport. Zero when it
+ * already fits. Otherwise pin its top just below the visual top so the
+ * first rows stay above the keyboard.
+ */
+export function scrollDeltaAboveKeyboard({
+  elementTop,
+  elementBottom,
+  offsetTop,
+  visualHeight,
+  margin = 12,
+}: {
+  elementTop: number
+  elementBottom: number
+  offsetTop: number
+  visualHeight: number
+  margin?: number
+}) {
+  const top = visualViewportEdge(elementTop, offsetTop)
+  const bottom = visualViewportEdge(elementBottom, offsetTop)
+  if (top >= margin && bottom <= visualHeight - margin) return 0
+  return top - margin
+}
+
 export function scrollDeltaToVisualTop({
   elementTop,
   offsetTop,
