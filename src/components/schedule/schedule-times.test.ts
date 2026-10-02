@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildDayStops,
+  plannedDay,
   shortTimeLabel,
   startOfWeek,
   weekDates,
@@ -29,6 +30,12 @@ describe('schedule times', () => {
       '9:00 PM',
     ])
     expect(shortTimeLabel('Late Night')).toBe('Late')
+  })
+
+  it('keeps a selected day inside this week', () => {
+    expect(plannedDay(friday, '2026-10-03').getDate()).toBe(3)
+    expect(plannedDay(friday, '2026-09-01').getDate()).toBe(2)
+    expect(plannedDay(friday, undefined).getDate()).toBe(2)
   })
 
   it('drops blank stops and keeps at most four', () => {

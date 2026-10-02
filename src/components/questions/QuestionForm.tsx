@@ -21,6 +21,8 @@ export default function QuestionForm({
   isSubmitArmed,
   onLocationErrorChange,
   onValidationErrorChange,
+  planDate,
+  onPlanDateChange,
 }: {
   currentSection: QuestionSection
   lastPage: number
@@ -44,6 +46,8 @@ export default function QuestionForm({
   isSubmitArmed: boolean
   onLocationErrorChange: (message: string | null) => void
   onValidationErrorChange: (message: string | null) => void
+  planDate?: string
+  onPlanDateChange?: (value: string) => void
 }) {
   return (
     <form
@@ -127,6 +131,8 @@ export default function QuestionForm({
                     onToggleCsvValue={(value) => {
                       onToggleCsvFieldValue(question.promptKey, value)
                     }}
+                    planDate={planDate}
+                    onPlanDateChange={onPlanDateChange}
                   />
                 </div>
                 {fieldConfig.helperText && (

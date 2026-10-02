@@ -32,14 +32,18 @@ export default function DateTimeField({
   id,
   name,
   value,
+  planDate,
   describedBy,
   onChange,
+  onPlanDateChange,
 }: {
   id: string
   name: string
   value: string | undefined
+  planDate?: string
   describedBy?: string
   onChange: (value: string | undefined) => void
+  onPlanDateChange?: (value: string) => void
 }) {
   return (
     <fieldset id={id} aria-describedby={describedBy} className="mt-1">
@@ -82,7 +86,11 @@ export default function DateTimeField({
           )
         })}
       </div>
-      <WeekSchedule dateTime={value} />
+      <WeekSchedule
+        dateTime={value}
+        planDate={planDate}
+        onSelectDay={onPlanDateChange}
+      />
     </fieldset>
   )
 }

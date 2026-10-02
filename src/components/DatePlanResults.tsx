@@ -8,7 +8,10 @@ import type {
 } from '#/types/index-route.types'
 import { PlaceImageCarousel } from '#/components/PlaceImageCarousel'
 import { DaySchedule } from '#/components/schedule/DaySchedule'
-import { buildDayStops } from '#/components/schedule/schedule-times'
+import {
+  buildDayStops,
+  parseIsoDate,
+} from '#/components/schedule/schedule-times'
 import { clearLatestPlanStorage, getSharePresentation } from '#/lib/date-plan'
 import { safeHttpsUrl, safeProviderUrl } from '#/lib/plan-security'
 import type { ShareAttempt } from '#/lib/date-plan'
@@ -453,7 +456,11 @@ export function DatePlanResults({
             ) : null}
           </div>
 
-          <DaySchedule timeLabel={plannedTime ?? 'Today'} items={dayItems} />
+          <DaySchedule
+            today={parseIsoDate(datePlan.searchState?.planDate) ?? undefined}
+            timeLabel={plannedTime ?? 'Today'}
+            items={dayItems}
+          />
 
           {variant === 'local' && presentation.blockedMessage ? (
             <div className="mt-6 rounded-2xl border border-[var(--love-100)] bg-[var(--love-050)] px-4 py-4 text-left">

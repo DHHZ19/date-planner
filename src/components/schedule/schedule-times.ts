@@ -29,6 +29,34 @@ export function weekDates(today: Date) {
   })
 }
 
+export function toIsoDate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function parseIsoDate(value: string | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null
+  }
+  return date
+}
+
+export function plannedDay(today: Date, planDate: string | undefined) {
+  const parsed = parseIsoDate(planDate)
+  if (!parsed) return today
+  const inWeek = weekDates(today).some((date) => isSameDay(date, parsed))
+  return inWeek ? parsed : today
+}
+
 export function isSameDay(left: Date, right: Date) {
   return (
     left.getFullYear() === right.getFullYear() &&

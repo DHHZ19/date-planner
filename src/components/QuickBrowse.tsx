@@ -40,8 +40,13 @@ export function QuickBrowse() {
   const [locationError, setLocationError] = useState<string | null>(null)
   const [isPlanTypeHelpOpen, setIsPlanTypeHelpOpen] = useState(false)
   const planTypeHelpRef = useRef<HTMLDivElement>(null)
-  const { search, updateField, toggleCsvFieldValue, getCsvFieldValues } =
-    useQuestionSearchState()
+  const {
+    search,
+    updateField,
+    toggleCsvFieldValue,
+    getCsvFieldValues,
+    setPlanDate,
+  } = useQuestionSearchState()
   const { isSubmitting, submitError, submitDatePlan } = useDatePlanSubmission()
   const keyboardObstructsForm = useKeyboardObstruction()
 
@@ -266,7 +271,9 @@ export function QuickBrowse() {
             id="quick-browse-time"
             name="dateTime"
             value={search.dateTime}
+            planDate={search.planDate}
             onChange={(val) => updateField('dateTime', val)}
+            onPlanDateChange={setPlanDate}
           />
         </section>
       </div>

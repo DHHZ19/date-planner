@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import DateTimeField from '#/components/questions/fields/DateTimeField'
 import { DaySchedule } from '#/components/schedule/DaySchedule'
@@ -15,13 +15,42 @@ afterEach(() => {
 
 describe('schedule views', () => {
   it('marks today on the week and shows the chosen time', () => {
-    render(<WeekSchedule today={friday} dateTime="Evening" />)
+    const onSelectDay = vi.fn()
+    render(
+      <WeekSchedule
+        today={friday}
+        dateTime="Evening"
+        onSelectDay={onSelectDay}
+      />,
+    )
 
-    const today = screen.getByRole('listitem', { current: 'date' })
+    const today = screen.getByRole('button', { current: 'date' })
     expect(today.textContent).toContain('Fr')
     expect(today.textContent).toContain('2')
     expect(today.textContent).toContain('Eve')
-    expect(screen.getAllByRole('listitem')).toHaveLength(7)
+    expect(today.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getAllByRole('button')).toHaveLength(7)
+
+    fireEvent.click(screen.getByRole('button', { name: /Sa/ }))
+    expect(onSelectDay).toHaveBeenCalledWith('2026-10-03')
+  })
+
+  it('moves the time mark onto the selected day', () => {
+    render(
+      <WeekSchedule today={friday} dateTime="Evening" planDate="2026-10-03" />,
+    )
+
+    const planned = screen.getByRole('button', { pressed: true })
+    expect(planned.textContent).toContain('Sa')
+    expect(planned.textContent).toContain('Eve')
+    expect(
+      screen.getByRole('button', { current: 'date' }).textContent,
+    ).toContain('Fr')
+    expect(
+      screen
+        .getByRole('button', { current: 'date' })
+        .getAttribute('aria-pressed'),
+    ).toBe('false')
   })
 
   it('lists the day and its stops', () => {
@@ -43,12 +72,14 @@ describe('schedule views', () => {
   })
 
   it('keeps the time-of-day choices and adds the week', () => {
+    const onPlanDateChange = vi.fn()
     render(
       <DateTimeField
         id="time"
         name="dateTime"
         value="Evening"
         onChange={() => {}}
+        onPlanDateChange={onPlanDateChange}
       />,
     )
 
@@ -56,6 +87,14 @@ describe('schedule views', () => {
       'checked',
       true,
     )
-    expect(screen.getByRole('region', { name: 'This week' })).toBeTruthy()
+    const week = screen.getByRole('region', { name: 'This week' })
+    expect(week.querySelector('[aria-pressed="true"]')?.textContent).toContain(
+      'Eve',
+    )
+    const otherDay = [...week.querySelectorAll('button')].find(
+      (button) => button.getAttribute('aria-pressed') === 'false',
+    )
+    fireEvent.click(otherDay!)
+    expect(onPlanDateChange).toHaveBeenCalledOnce()
   })
 })

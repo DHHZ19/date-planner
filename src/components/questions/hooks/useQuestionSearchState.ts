@@ -151,11 +151,28 @@ export function useQuestionSearchState() {
     [getCsvFieldValues, updateField],
   )
 
+  const setPlanDate = useCallback(
+    (value: string | undefined) => {
+      flushPendingUpdate()
+      navigate({
+        to: '.',
+        search: (prev) => ({
+          ...prev,
+          planDate: value && value.length > 0 ? value : undefined,
+        }),
+        resetScroll: false,
+        replace: true,
+      })
+    },
+    [flushPendingUpdate, navigate],
+  )
+
   return {
     search,
     updateField,
     getCsvFieldValues,
     toggleCsvFieldValue,
     setLocation,
+    setPlanDate,
   }
 }
