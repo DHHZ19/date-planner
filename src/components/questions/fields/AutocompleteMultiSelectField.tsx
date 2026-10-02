@@ -50,6 +50,32 @@ function readVisualViewport() {
   }
 }
 
+function measureSuggestionListMax(
+  container: HTMLElement,
+  input: HTMLInputElement,
+) {
+  if (!window.matchMedia(NARROW_QUERY).matches) {
+    return null
+  }
+
+  const header = container.querySelector('[data-suggestion-header]')
+  const chipRow = container.querySelector('[data-selected-chips]')
+  const listTop =
+    header instanceof HTMLElement
+      ? header.getBoundingClientRect().bottom
+      : chipRow instanceof HTMLElement
+        ? chipRow.getBoundingClientRect().bottom
+        : input.getBoundingClientRect().bottom
+  const after = readVisualViewport()
+
+  return suggestionListMaxPx({
+    visualHeight: after.height,
+    listTop,
+    offsetTop: after.offsetTop,
+    keyboardInset: after.inset,
+  })
+}
+
 /** The focused field often sits near the end of the page, so a keyboard inset leaves no room to scroll it above the keyboard. */
 function ensureScrollRoom(delta: number) {
   if (delta <= 2) return
@@ -202,7 +228,13 @@ export default function AutocompleteMultiSelectField({
     emitChange(nextRawValue)
     setActiveIndex(0)
     setKeyboardNavigationActive(false)
-    setIsOpen(false)
+    if (
+      !selected &&
+      nextValues.length > selectedValues.length &&
+      nextValues.length >= maxSelections
+    ) {
+      setIsOpen(false)
+    }
   }
 
   useEffect(() => {
@@ -302,21 +334,7 @@ export default function AutocompleteMultiSelectField({
         scrolls = 2
       }
 
-      const header = container.querySelector('[data-suggestion-header]')
-      const chipRow = container.querySelector('[data-selected-chips]')
-      const listTop =
-        header instanceof HTMLElement
-          ? header.getBoundingClientRect().bottom
-          : chipRow instanceof HTMLElement
-            ? chipRow.getBoundingClientRect().bottom
-            : input.getBoundingClientRect().bottom
-      const after = readVisualViewport()
-      const next = suggestionListMaxPx({
-        visualHeight: after.height,
-        listTop,
-        offsetTop: after.offsetTop,
-        keyboardInset: after.inset,
-      })
+      const next = measureSuggestionListMax(container, input)
       setMenuMaxPx((current) => (Object.is(current, next) ? current : next))
       adjusting = false
     }
@@ -339,6 +357,17 @@ export default function AutocompleteMultiSelectField({
       root.style.overflowAnchor = previousAnchor
       root.style.paddingBottom = previousPadding
     }
+  }, [isOpen])
+
+  useLayoutEffect(() => {
+    if (!isOpen) return
+
+    const container = containerRef.current
+    const input = inputRef.current
+    if (!container || !input) return
+
+    const next = measureSuggestionListMax(container, input)
+    setMenuMaxPx((current) => (Object.is(current, next) ? current : next))
   }, [isOpen, selectedValues.length])
 
   const selectSuggestion = (value: string) => {

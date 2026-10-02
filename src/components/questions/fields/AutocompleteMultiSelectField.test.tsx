@@ -124,12 +124,10 @@ describe('AutocompleteMultiSelectField', () => {
     fireEvent.keyDown(input, { key: 'ArrowDown' })
     fireEvent.keyDown(input, { key: 'Enter' })
 
-    expect(screen.queryByRole('listbox')).toBeNull()
     expect(input).toHaveProperty('value', '')
     expect(screen.getByRole('button', { name: 'Remove Sushi' })).toBeTruthy()
     expect(onChange).toHaveBeenCalledWith('sushi_restaurant')
 
-    fireEvent.click(input)
     const chip = screen.getByRole('button', { name: 'Remove Sushi' })
     const reopened = screen.getByRole('listbox', { name: 'Food suggestions' })
     const chipList = chip.closest('ul')
@@ -173,7 +171,7 @@ describe('AutocompleteMultiSelectField', () => {
     expect(screen.queryByRole('listbox')).toBeNull()
   })
 
-  it('closes after a pointer selection', () => {
+  it('keeps the menu open after a pointer selection', () => {
     const onChange = vi.fn()
     render(
       <AutocompleteMultiSelectField
@@ -194,7 +192,9 @@ describe('AutocompleteMultiSelectField', () => {
     const input = screen.getByRole('combobox')
     const chip = screen.getByRole('button', { name: 'Remove Italian' })
 
-    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(
+      screen.getByRole('listbox', { name: 'Food suggestions' }),
+    ).toBeTruthy()
     expect(input).toHaveProperty('value', '')
     expect(input.parentElement?.contains(chip)).toBe(false)
     expect(
