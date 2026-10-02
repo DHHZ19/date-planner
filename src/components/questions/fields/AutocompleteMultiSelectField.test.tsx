@@ -202,4 +202,71 @@ describe('AutocompleteMultiSelectField', () => {
     ).toBeTruthy()
     expect(onChange).toHaveBeenCalledWith('italian_restaurant')
   })
+
+  it('clips wrapped chips inside the rounded shell', () => {
+    render(
+      <AutocompleteMultiSelectField
+        id="food"
+        name="food"
+        defaultValue="italian_restaurant"
+        placeholder="Food"
+        suggestions={suggestions}
+        ariaLabel="Food suggestions"
+        resetKey={0}
+        onChange={() => {}}
+      />,
+    )
+
+    const chip = screen.getByRole('button', { name: 'Remove Italian' })
+    const shell = chip.closest('ul')?.parentElement
+
+    expect(shell?.className).toContain('overflow-clip')
+    expect(shell?.className).toContain('rounded-2xl')
+  })
+
+  it('stays open at the selection limit and blocks another pick', () => {
+    const onChange = vi.fn()
+    render(
+      <AutocompleteMultiSelectField
+        id="food"
+        name="food"
+        defaultValue={undefined}
+        placeholder="Food"
+        suggestions={suggestions}
+        maxSelections={2}
+        ariaLabel="Food suggestions"
+        resetKey={0}
+        onChange={onChange}
+      />,
+    )
+
+    fireEvent.focus(screen.getByRole('combobox'))
+    fireEvent.click(screen.getByRole('option', { name: /Italian/ }))
+    fireEvent.click(screen.getByRole('option', { name: /Sushi/ }))
+
+    expect(
+      screen.getByRole('listbox', { name: 'Food suggestions' }),
+    ).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe(
+      "You can't add more than 2 selections",
+    )
+    expect(
+      screen
+        .getByRole('option', { name: /Coffee/ })
+        .getAttribute('aria-disabled'),
+    ).toBe('true')
+
+    fireEvent.click(screen.getByRole('option', { name: /Coffee/ }))
+
+    expect(screen.queryByRole('button', { name: 'Remove Coffee' })).toBeNull()
+    expect(onChange).toHaveBeenLastCalledWith(
+      'italian_restaurant,sushi_restaurant',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Italian' }))
+
+    expect(screen.queryByRole('status')).toBeNull()
+    fireEvent.click(screen.getByRole('option', { name: /Coffee/ }))
+    expect(screen.getByRole('button', { name: 'Remove Coffee' })).toBeTruthy()
+  })
 })

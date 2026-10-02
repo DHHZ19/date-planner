@@ -93,6 +93,7 @@ export function SuggestionOption({
   label,
   detail,
   selected = false,
+  disabled = false,
   active = false,
   onSelect,
   onHighlight,
@@ -101,6 +102,7 @@ export function SuggestionOption({
   label: string
   detail?: string
   selected?: boolean
+  disabled?: boolean
   active?: boolean
   onSelect: () => void
   onHighlight: () => void
@@ -132,16 +134,21 @@ export function SuggestionOption({
         role="option"
         aria-label={label}
         aria-selected={selected}
+        aria-disabled={disabled || undefined}
         className={[
           'flex min-h-11 w-full items-center gap-3 px-3 text-left text-base focus-visible:outline-3 focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--love-300)]',
           active
             ? 'bg-[var(--love-050)] text-[var(--love-900)]'
             : 'text-[var(--ui-text)] hover:bg-[var(--ui-surface-soft)]',
           selected ? 'font-semibold' : 'font-medium',
+          disabled ? 'cursor-not-allowed opacity-60' : '',
         ].join(' ')}
         onMouseDown={(event) => event.preventDefault()}
         onMouseEnter={onHighlight}
-        onClick={onSelect}
+        onClick={() => {
+          if (disabled) return
+          onSelect()
+        }}
       >
         <span
           aria-hidden="true"

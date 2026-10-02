@@ -215,6 +215,10 @@ export default function AutocompleteMultiSelectField({
 
   const toggleSuggestion = (value: string) => {
     const selected = selectedValues.includes(value)
+    if (!selected && selectedValues.length >= maxSelections) {
+      return
+    }
+
     const nextValues = selected
       ? selectedValues.filter((current) => current !== value)
       : selectedValues.length < maxSelections
@@ -228,13 +232,6 @@ export default function AutocompleteMultiSelectField({
     emitChange(nextRawValue)
     setActiveIndex(0)
     setKeyboardNavigationActive(false)
-    if (
-      !selected &&
-      nextValues.length > selectedValues.length &&
-      nextValues.length >= maxSelections
-    ) {
-      setIsOpen(false)
-    }
   }
 
   useEffect(() => {
@@ -525,27 +522,36 @@ export default function AutocompleteMultiSelectField({
                 {group.label}
               </p>
               <ul>
-                {group.items.map(({ suggestion, index }) => (
-                  <SuggestionOption
-                    key={suggestion.value}
-                    id={`${id}-option-${index}`}
-                    label={suggestion.label}
-                    selected={selectedSet.has(suggestion.value)}
-                    active={index === activeIndex}
-                    onHighlight={() => {
-                      setActiveIndex(index)
-                      setKeyboardNavigationActive(false)
-                    }}
-                    onSelect={() => selectSuggestion(suggestion.value)}
-                  />
-                ))}
+                {group.items.map(({ suggestion, index }) => {
+                  const selected = selectedSet.has(suggestion.value)
+                  return (
+                    <SuggestionOption
+                      key={suggestion.value}
+                      id={`${id}-option-${index}`}
+                      label={suggestion.label}
+                      selected={selected}
+                      disabled={
+                        selectedValues.length >= maxSelections && !selected
+                      }
+                      active={index === activeIndex}
+                      onHighlight={() => {
+                        setActiveIndex(index)
+                        setKeyboardNavigationActive(false)
+                      }}
+                      onSelect={() => selectSuggestion(suggestion.value)}
+                    />
+                  )
+                })}
               </ul>
             </div>
           ))}
         </div>
         {selectedValues.length >= maxSelections && (
-          <div className="border-t border-[var(--ui-border)] bg-[var(--ui-surface-soft)] px-3 py-2 text-center text-xs text-[var(--ui-text-muted)]">
-            Maximum {maxSelections} selections
+          <div
+            role="status"
+            className="border-t border-[var(--ui-border)] bg-[var(--ui-surface-soft)] px-3 py-2 text-center text-sm font-medium text-[var(--ui-text)]"
+          >
+            You can't add more than {maxSelections} selections
           </div>
         )}
       </SuggestionMenu>
@@ -586,7 +592,7 @@ export default function AutocompleteMultiSelectField({
   const joinedShellClassName = menuFollowsChips
     ? isOpen
       ? 'overflow-hidden rounded-2xl border-2 border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
-      : 'rounded-2xl border-2 border-[var(--ui-border)] border-b-4 bg-[var(--ui-surface)] focus-within:border-[var(--love-300)] focus-within:ring-4 focus-within:ring-[var(--love-050)]/70'
+      : 'overflow-clip rounded-2xl border-2 border-[var(--ui-border)] border-b-4 bg-[var(--ui-surface)] focus-within:border-[var(--love-300)] focus-within:ring-4 focus-within:ring-[var(--love-050)]/70'
     : undefined
 
   return (
