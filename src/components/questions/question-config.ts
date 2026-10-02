@@ -41,8 +41,7 @@ export const QUESTION_SECTIONS: QuestionSection[] = [
     page: 3,
     questions: [
       {
-        prompt:
-          'What kind of food are you feeling? (type or pick from suggestions)',
+        prompt: 'What kind of food are you feeling?',
         promptKey: 'food',
       },
     ],
