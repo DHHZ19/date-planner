@@ -479,9 +479,9 @@ export default function AutocompleteMultiSelectField({
       >
         <div
           data-suggestion-header
-          className="flex min-h-11 items-center justify-between border-b border-[var(--ui-border)] pr-1 pl-3"
+          className="flex min-h-11 items-center gap-2 border-b border-[var(--ui-border)] pr-1 pl-3"
         >
-          <p className="text-xs font-semibold tracking-wide text-[var(--ui-text-muted)] uppercase">
+          <p className="shrink-0 text-xs font-semibold tracking-wide text-[var(--ui-text-muted)] uppercase">
             Suggestions
             {selectedValues.length > 0 && (
               <span className="ml-1 text-[var(--love-600)]">
@@ -489,6 +489,16 @@ export default function AutocompleteMultiSelectField({
               </span>
             )}
           </p>
+          {selectedValues.length >= maxSelections ? (
+            <p
+              role="status"
+              className="min-w-0 flex-1 text-right text-xs leading-snug font-medium text-[var(--love-700)]"
+            >
+              You can't add more than {maxSelections} selections
+            </p>
+          ) : (
+            <span className="flex-1" />
+          )}
           <button
             id={`${id}-done`}
             ref={doneButtonRef}
@@ -510,7 +520,7 @@ export default function AutocompleteMultiSelectField({
         </div>
         <div
           data-suggestion-scroller
-          className="max-h-[min(15rem,40svh)] overflow-y-auto overscroll-y-contain py-1"
+          className="max-h-[min(15rem,40svh)] overflow-y-auto overscroll-y-contain py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           style={menuMaxPx == null ? undefined : { maxHeight: menuMaxPx }}
         >
           {groupSuggestionsByCategory(
@@ -546,14 +556,6 @@ export default function AutocompleteMultiSelectField({
             </div>
           ))}
         </div>
-        {selectedValues.length >= maxSelections && (
-          <div
-            role="status"
-            className="border-t border-[var(--ui-border)] bg-[var(--ui-surface-soft)] px-3 py-2 text-center text-sm font-medium text-[var(--ui-text)]"
-          >
-            You can't add more than {maxSelections} selections
-          </div>
-        )}
       </SuggestionMenu>
     ) : null
 

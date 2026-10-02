@@ -98,6 +98,14 @@ body::before {
     radial-gradient(circle at 42% 82%, rgba(47, 106, 74, 0.14), transparent 36%);
 }
 
+[data-suggestion-scroller] {
+  scrollbar-width: none;
+}
+
+[data-suggestion-scroller]::-webkit-scrollbar {
+  display: none;
+}
+
 body::after {
   content: '';
   position: fixed;

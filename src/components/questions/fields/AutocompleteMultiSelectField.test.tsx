@@ -120,6 +120,7 @@ describe('AutocompleteMultiSelectField', () => {
     expect(screen.getByRole('group', { name: 'Drink' })).toBeTruthy()
     const scroller = menu.querySelector('[class*="40svh"]')
     expect(scroller?.className).toContain('overscroll-y-contain')
+    expect(scroller?.className).toContain('[scrollbar-width:none]')
 
     fireEvent.keyDown(input, { key: 'ArrowDown' })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -247,9 +248,14 @@ describe('AutocompleteMultiSelectField', () => {
     expect(
       screen.getByRole('listbox', { name: 'Food suggestions' }),
     ).toBeTruthy()
-    expect(screen.getByRole('status').textContent).toBe(
-      "You can't add more than 2 selections",
-    )
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe("You can't add more than 2 selections")
+    expect(status.closest('[data-suggestion-header]')).toBeTruthy()
+    expect(
+      screen
+        .getByRole('listbox', { name: 'Food suggestions' })
+        .querySelector('[data-suggestion-scroller]')?.nextElementSibling,
+    ).toBeNull()
     expect(
       screen
         .getByRole('option', { name: /Coffee/ })
