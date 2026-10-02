@@ -7,6 +7,8 @@ import type {
   SearchState,
 } from '#/types/index-route.types'
 import { PlaceImageCarousel } from '#/components/PlaceImageCarousel'
+import { DaySchedule } from '#/components/schedule/DaySchedule'
+import { buildDayStops } from '#/components/schedule/schedule-times'
 import { clearLatestPlanStorage, getSharePresentation } from '#/lib/date-plan'
 import { safeHttpsUrl, safeProviderUrl } from '#/lib/plan-security'
 import type { ShareAttempt } from '#/lib/date-plan'
@@ -324,6 +326,21 @@ export function DatePlanResults({
   const reasoningSummary =
     getReasoningSummary(restaurant, dateVibe, activity, event) ||
     'These suggestions best match the preferences and available place details from your search.'
+  const plannedTime = datePlan.searchState?.dateTime
+  const dayItems = buildDayStops(plannedTime, [
+    restaurantResult
+      ? { title: getResultTitle(restaurantResult), detail: 'Meal' }
+      : { title: '', detail: 'Meal' },
+    dateVibeResult
+      ? { title: getResultTitle(dateVibeResult), detail: 'Date vibe' }
+      : { title: '', detail: 'Date vibe' },
+    activityResult
+      ? { title: getResultTitle(activityResult), detail: 'Activity' }
+      : { title: '', detail: 'Activity' },
+    eventResult
+      ? { title: getResultTitle(eventResult), detail: 'Live event' }
+      : { title: '', detail: 'Live event' },
+  ])
 
   const handleNextRestaurant = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -435,6 +452,8 @@ export function DatePlanResults({
               </p>
             ) : null}
           </div>
+
+          <DaySchedule timeLabel={plannedTime ?? 'Today'} items={dayItems} />
 
           {variant === 'local' && presentation.blockedMessage ? (
             <div className="mt-6 rounded-2xl border border-[var(--love-100)] bg-[var(--love-050)] px-4 py-4 text-left">

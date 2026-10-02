@@ -1,4 +1,5 @@
 import { DATE_TIME_OPTIONS } from '#/components/questions/question-config'
+import { WeekSchedule } from '#/components/schedule/WeekSchedule'
 import type { ElementType } from 'react'
 import {
   Clock,
@@ -81,6 +82,7 @@ export default function DateTimeField({
           )
         })}
       </div>
+      <WeekSchedule dateTime={value} />
     </fieldset>
   )
 }
