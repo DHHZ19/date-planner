@@ -89,6 +89,7 @@ export default function QuickFoodField({
             onChange={onChange}
             placeholder={isSurprise ? 'Type anything...' : 'Add another...'}
             resetKey="quick-food"
+            className="block min-h-11 w-full rounded-2xl border-2 border-b-4 border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-2 text-base font-semibold text-[var(--ui-text)] transition-all duration-150 outline-none placeholder:font-medium placeholder:text-[var(--ui-text-muted)] focus:border-[var(--love-300)] focus:ring-4 focus:ring-[var(--love-050)]/70"
           />
         </div>
       </div>
