@@ -135,6 +135,7 @@ export type SearchState = {
   longitude?: number
   locationSource?: 'ip' | 'current' | 'pin' | 'typed'
   locationLabel?: string
+  planDate?: string
 } & Partial<Record<AnswerKey, string>>
 
 export type QuestionInputsProps = {

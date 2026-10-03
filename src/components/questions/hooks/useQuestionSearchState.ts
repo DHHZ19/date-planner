@@ -151,11 +151,59 @@ export function useQuestionSearchState() {
     [getCsvFieldValues, updateField],
   )
 
+  const setPlanDate = useCallback(
+    (value: string | undefined) => {
+      flushPendingUpdate()
+      navigate({
+        to: '.',
+        search: (prev) => ({
+          ...prev,
+          planDate: value && value.length > 0 ? value : undefined,
+        }),
+        resetScroll: false,
+        replace: true,
+      })
+    },
+    [flushPendingUpdate, navigate],
+  )
+
+  const updateFields = useCallback(
+    (values: Partial<Record<AnswerKey, string | undefined>>) => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+        debounceTimeoutRef.current = null
+      }
+      pendingUpdateRef.current = undefined
+
+      navigate({
+        to: '.',
+        search: (prev) => {
+          let next = { ...prev }
+          for (const [key, value] of Object.entries(values) as [
+            AnswerKey,
+            string | undefined,
+          ][]) {
+            next = {
+              ...next,
+              [key]: value && value.length > 0 ? value : undefined,
+            }
+          }
+          return next
+        },
+        resetScroll: false,
+        replace: true,
+      })
+    },
+    [navigate],
+  )
+
   return {
     search,
     updateField,
+    updateFields,
     getCsvFieldValues,
     toggleCsvFieldValue,
     setLocation,
+    setPlanDate,
   }
 }
