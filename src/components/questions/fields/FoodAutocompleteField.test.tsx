@@ -10,8 +10,30 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+function renderField(
+  props: Partial<{
+    defaultValue: string
+    placeholder: string
+    onChange: (value: string | undefined) => void
+  }> = {},
+) {
+  render(
+    <>
+      <label htmlFor="food">Food</label>
+      <FoodAutocompleteField
+        id="food"
+        name="food"
+        defaultValue={props.defaultValue}
+        placeholder={props.placeholder ?? 'Type anything...'}
+        resetKey={0}
+        onChange={props.onChange ?? (() => {})}
+      />
+    </>,
+  )
+}
+
 function listbox() {
-  const select = screen.getByRole('listbox', { name: 'Food' })
+  const select = screen.getByRole('listbox', { name: 'Food preferences' })
   if (!(select instanceof HTMLSelectElement)) {
     throw new Error('expected a select')
   }
@@ -25,41 +47,24 @@ function choose(values: string[]) {
     option.selected = chosen.has(option.value)
   }
   fireEvent.change(select)
-  return select
 }
 
 describe('FoodAutocompleteField', () => {
-  it('shows a native list in the field shell and stores at most four values', () => {
+  it('keeps a native list, preserves other stored values, and caps at four', () => {
     const onChange = vi.fn()
-    render(
-      <>
-        <label htmlFor="food">Food</label>
-        <FoodAutocompleteField
-          id="food"
-          name="food"
-          defaultValue="chinese_restaurant,french_restaurant"
-          placeholder="Food"
-          resetKey={0}
-          onChange={onChange}
-        />
-      </>,
-    )
+    renderField({
+      defaultValue: 'Italian,chinese_restaurant',
+      onChange,
+    })
 
     const select = listbox()
-    expect(select.tagName).toBe('SELECT')
+    const filter = screen.getByRole('textbox', { name: 'Food' })
     expect(select).toHaveProperty('multiple', true)
     expect(select).toHaveProperty('size', 6)
-    expect(select).toHaveProperty('name', 'food')
-    expect(select.className).toContain('rounded-2xl')
-    expect(select.className).toContain('border-2')
-    expect(select.className).toContain('text-base')
-    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(filter.getAttribute('aria-controls')).toBe(select.id)
+    expect(select.parentElement?.className).toContain('rounded-2xl')
     expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
     expect(screen.getByRole('option', { name: 'Chinese' })).toHaveProperty(
-      'selected',
-      true,
-    )
-    expect(screen.getByRole('option', { name: 'French' })).toHaveProperty(
       'selected',
       true,
     )
@@ -77,8 +82,9 @@ describe('FoodAutocompleteField', () => {
       'greek_restaurant',
       'indian_restaurant',
     ])
+
     expect(onChange).toHaveBeenLastCalledWith(
-      'chinese_restaurant,french_restaurant,greek_restaurant,indian_restaurant',
+      'Italian,chinese_restaurant,french_restaurant,greek_restaurant,indian_restaurant',
     )
     expect(screen.getByRole('option', { name: 'American' })).toHaveProperty(
       'selected',
@@ -86,7 +92,39 @@ describe('FoodAutocompleteField', () => {
     )
   })
 
-  it('scrolls the visible list above the keyboard on focus', () => {
+  it('filters the list and keeps a selected option that does not match', () => {
+    const onChange = vi.fn()
+    renderField({
+      defaultValue: 'Italian,chinese_restaurant',
+      placeholder: 'Add another...',
+      onChange,
+    })
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Food' }), {
+      target: { value: 'fren' },
+    })
+
+    expect(screen.getByPlaceholderText('Add another...')).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'French' })).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'Chinese' })).toHaveProperty(
+      'selected',
+      true,
+    )
+    expect(screen.queryByRole('option', { name: 'American' })).toBeNull()
+    expect(onChange).not.toHaveBeenCalled()
+
+    choose(['chinese_restaurant', 'french_restaurant'])
+    expect(onChange).toHaveBeenLastCalledWith(
+      'Italian,chinese_restaurant,french_restaurant',
+    )
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Food' }), {
+      target: { value: '' },
+    })
+    expect(screen.getByRole('option', { name: 'American' })).toBeTruthy()
+  })
+
+  it('scrolls the filter and list above the keyboard on focus', () => {
     const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {})
     Object.defineProperty(window, 'visualViewport', {
       configurable: true,
@@ -111,21 +149,10 @@ describe('FoodAutocompleteField', () => {
       },
     })
 
-    render(
-      <>
-        <label htmlFor="food">Food</label>
-        <FoodAutocompleteField
-          id="food"
-          name="food"
-          defaultValue={undefined}
-          placeholder="Food"
-          resetKey={0}
-          onChange={() => {}}
-        />
-      </>,
-    )
-
+    renderField()
+    fireEvent.focus(screen.getByRole('textbox', { name: 'Food' }))
     fireEvent.focus(listbox())
     expect(scrollBy).toHaveBeenCalledWith(0, 488)
+    expect(scrollBy).toHaveBeenCalledTimes(2)
   })
 })
