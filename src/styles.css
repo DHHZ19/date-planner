@@ -410,6 +410,8 @@ a {
 }
 
 .food-field,
-.food-field * {
+.food-field *,
+.food-choice-row,
+.food-choice-row * {
   overflow-anchor: none;
 }

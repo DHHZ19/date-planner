@@ -1,5 +1,8 @@
-import { useMemo } from 'react'
-import FoodAutocompleteField from './FoodAutocompleteField'
+import { useMemo, useRef, useState } from 'react'
+import FoodAutocompleteField, {
+  visibleFoodSuggestions,
+} from './FoodAutocompleteField'
+import type { FoodAutocompleteFieldHandle } from './FoodAutocompleteField'
 import { getRandomCuisineSurprise } from '#/constants/food-suggestions'
 
 const QUICK_FOOD_OPTIONS = [
@@ -11,6 +14,15 @@ const QUICK_FOOD_OPTIONS = [
   { label: 'Coffee', value: 'Coffee' },
 ]
 
+function choiceChipClassName(selected: boolean) {
+  return [
+    'cursor-pointer rounded-2xl border-2 px-4 py-2.5 text-sm font-semibold transition-all duration-150',
+    selected
+      ? 'border-b-4 border-[var(--love-900)] bg-[var(--love-700)] text-white active:translate-y-[2px] active:border-b-2'
+      : 'border-b-4 border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)] hover:bg-[var(--ui-surface-soft)] active:translate-y-[2px] active:border-b-2',
+  ].join(' ')
+}
+
 export default function QuickFoodField({
   value,
   onChange,
@@ -18,6 +30,8 @@ export default function QuickFoodField({
   value: string | undefined
   onChange: (value: string | undefined) => void
 }) {
+  const actionsRef = useRef<FoodAutocompleteFieldHandle | null>(null)
+  const [query, setQuery] = useState('')
   const selectedValues = useMemo(() => {
     return (value ?? '')
       .split(',')
@@ -26,6 +40,8 @@ export default function QuickFoodField({
   }, [value])
 
   const isSurprise = selectedValues.length === 0
+  const showingMatches = query.trim().length > 0
+  const matches = visibleFoodSuggestions(query, selectedValues)
 
   const toggleOption = (optValue: string) => {
     const alreadySelected = selectedValues.includes(optValue)
@@ -48,50 +64,70 @@ export default function QuickFoodField({
   return (
     <fieldset className="mt-1">
       <legend className="sr-only">Select your food preferences</legend>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={handleSurpriseClick}
-          className={[
-            'cursor-pointer rounded-2xl border-2 px-4 py-2.5 text-sm font-semibold transition-all duration-150',
-            isSurprise
-              ? 'border-b-4 border-[var(--love-900)] bg-[var(--love-700)] text-white active:translate-y-[2px] active:border-b-2'
-              : 'border-b-4 border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)] hover:bg-[var(--ui-surface-soft)] active:translate-y-[2px] active:border-b-2',
-          ].join(' ')}
-        >
-          Surprise me
-        </button>
-
-        {QUICK_FOOD_OPTIONS.map((opt) => {
-          const selected = selectedValues.includes(opt.value)
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => toggleOption(opt.value)}
-              className={[
-                'cursor-pointer rounded-2xl border-2 px-4 py-2.5 text-sm font-semibold transition-all duration-150',
-                selected
-                  ? 'border-b-4 border-[var(--love-900)] bg-[var(--love-700)] text-white active:translate-y-[2px] active:border-b-2'
-                  : 'border-b-4 border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)] hover:bg-[var(--ui-surface-soft)] active:translate-y-[2px] active:border-b-2',
-              ].join(' ')}
+      <FoodAutocompleteField
+        id="quick-food-input"
+        name="quickFood"
+        defaultValue={value}
+        onChange={onChange}
+        placeholder={isSurprise ? 'Type anything...' : 'Add another...'}
+        resetKey="quick-food"
+        onQueryChange={setQuery}
+        actionsRef={actionsRef}
+        leading={
+          <div className="food-choice-row relative mb-2">
+            <div
+              data-food-quick-chips
+              className={`flex flex-wrap gap-2 ${showingMatches ? 'invisible' : ''}`}
+              aria-hidden={showingMatches || undefined}
+              inert={showingMatches || undefined}
             >
-              {opt.label}
-            </button>
-          )
-        })}
+              <button
+                type="button"
+                onClick={handleSurpriseClick}
+                className={choiceChipClassName(isSurprise)}
+              >
+                Surprise me
+              </button>
 
-        <div className="relative w-full min-w-0 basis-full">
-          <FoodAutocompleteField
-            id="quick-food-input"
-            name="quickFood"
-            defaultValue={value}
-            onChange={onChange}
-            placeholder={isSurprise ? 'Type anything...' : 'Add another...'}
-            resetKey="quick-food"
-          />
-        </div>
-      </div>
+              {QUICK_FOOD_OPTIONS.map((opt) => {
+                const selected = selectedValues.includes(opt.value)
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => toggleOption(opt.value)}
+                    className={choiceChipClassName(selected)}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {showingMatches ? (
+              <ul
+                aria-label="Food suggestions"
+                className="absolute inset-0 flex flex-wrap content-start gap-2 overflow-hidden"
+              >
+                {matches.map((suggestion) => (
+                  <li key={suggestion.value}>
+                    <button
+                      type="button"
+                      className={choiceChipClassName(false)}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() =>
+                        actionsRef.current?.addSuggestion(suggestion)
+                      }
+                    >
+                      {suggestion.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        }
+      />
     </fieldset>
   )
 }

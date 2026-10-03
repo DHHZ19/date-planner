@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { FOOD_SUGGESTIONS } from '../../../constants/food-suggestions'
 import type { FoodSuggestion } from '../../../constants/food-suggestions'
 import { scrollDeltaAboveKeyboard } from '#/lib/keyboard-obstruction'
@@ -36,9 +37,6 @@ function shellClassName(lit: boolean, rejected: boolean) {
   }
   return foodShellClassName
 }
-
-const suggestionChipClassName =
-  'min-h-11 rounded-2xl border-2 border-b-4 border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2 text-sm font-semibold text-[var(--ui-text)] transition-colors duration-150 hover:bg-[var(--ui-surface-soft)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]'
 
 const committedChipClassName =
   'inline-flex min-h-11 max-w-full items-center gap-2 rounded-2xl border-2 border-b-4 border-[var(--love-900)] bg-[var(--love-700)] px-3 py-2 text-sm font-semibold text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]'
@@ -80,7 +78,7 @@ function suggestionForEntry(text: string) {
   return partial.length === 1 ? partial[0] : undefined
 }
 
-function visibleSuggestions(query: string, tokens: string[]) {
+export function visibleFoodSuggestions(query: string, tokens: string[]) {
   const term = query.trim().toLowerCase()
   if (!term) return []
   const taken = new Set(tokens)
@@ -89,6 +87,10 @@ function visibleSuggestions(query: string, tokens: string[]) {
       suggestion.label.toLowerCase().includes(term) &&
       !taken.has(suggestion.value),
   ).slice(0, MAX_VISIBLE_SUGGESTIONS)
+}
+
+export type FoodAutocompleteFieldHandle = {
+  addSuggestion: (suggestion: FoodSuggestion) => void
 }
 
 function scrollFieldAboveKeyboard(field: HTMLElement) {
@@ -113,6 +115,9 @@ export default function FoodAutocompleteField({
   placeholder,
   onChange,
   resetKey,
+  onQueryChange,
+  actionsRef,
+  leading,
 }: {
   id: string
   name: string
@@ -121,6 +126,9 @@ export default function FoodAutocompleteField({
   placeholder: string
   onChange: (value: string | undefined) => void
   resetKey: number | string
+  onQueryChange?: (query: string) => void
+  actionsRef?: RefObject<FoodAutocompleteFieldHandle | null>
+  leading?: ReactNode
 }) {
   const fieldRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -136,7 +144,13 @@ export default function FoodAutocompleteField({
   const capId = `${id}-cap`
   const rejectId = `${id}-reject`
   const atCap = tokens.length >= MAX_FOOD_SELECTIONS
-  const suggestions = visibleSuggestions(query, tokens)
+  const onQueryChangeRef = useRef(onQueryChange)
+  onQueryChangeRef.current = onQueryChange
+
+  const publishQuery = (next: string) => {
+    setQuery(next)
+    onQueryChangeRef.current?.(next)
+  }
 
   useEffect(() => {
     const next = tokensFromCsv(defaultValue)
@@ -146,6 +160,7 @@ export default function FoodAutocompleteField({
 
   useEffect(() => {
     setQuery('')
+    onQueryChangeRef.current?.('')
   }, [resetKey])
 
   const detachKeyboardScroll = () => {
@@ -197,7 +212,7 @@ export default function FoodAutocompleteField({
   const commitTokens = (next: string[], added: string) => {
     tokensRef.current = next
     setTokens(next)
-    setQuery('')
+    publishQuery('')
     setRejection('')
     onChange(next.length > 0 ? next.join(',') : undefined)
     lightUp(added)
@@ -211,7 +226,7 @@ export default function FoodAutocompleteField({
     }
     const current = tokensRef.current
     if (current.includes(trimmed)) {
-      setQuery('')
+      publishQuery('')
       return
     }
     if (current.length >= MAX_FOOD_SELECTIONS) return
@@ -228,6 +243,19 @@ export default function FoodAutocompleteField({
     cancelCheck()
     addToken(suggestion.value)
   }
+
+  const addSuggestionRef = useRef(addSuggestion)
+  addSuggestionRef.current = addSuggestion
+
+  useEffect(() => {
+    if (!actionsRef) return
+    actionsRef.current = {
+      addSuggestion: (suggestion) => addSuggestionRef.current(suggestion),
+    }
+    return () => {
+      actionsRef.current = null
+    }
+  }, [actionsRef])
 
   const commitQuery = () => {
     const trimmed = (inputRef.current?.value ?? query).trim()
@@ -288,6 +316,7 @@ export default function FoodAutocompleteField({
         commitQuery()
       }}
     >
+      {leading}
       <div
         className={shellClassName(lit, rejection.length > 0)}
         data-lit={lit ? 'true' : undefined}
@@ -306,7 +335,7 @@ export default function FoodAutocompleteField({
             keepFieldInView()
             armKeyboardScroll()
           }}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => publishQuery(event.target.value)}
           className="w-full bg-transparent text-base font-medium text-[var(--ui-text)] outline-none placeholder:font-medium placeholder:text-[var(--ui-text-muted)]"
         />
         <input type="hidden" name={name} value={tokens.join(',')} />
@@ -324,26 +353,6 @@ export default function FoodAutocompleteField({
               >
                 <span className="truncate">{labelFor(token)}</span>
                 <span aria-hidden="true">×</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {suggestions.length > 0 ? (
-        <ul
-          aria-label="Food suggestions"
-          className="absolute inset-x-0 top-full z-10 mt-2 flex flex-wrap gap-2"
-        >
-          {suggestions.map((suggestion) => (
-            <li key={suggestion.value}>
-              <button
-                type="button"
-                className={suggestionChipClassName}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => addSuggestion(suggestion)}
-              >
-                {suggestion.label}
               </button>
             </li>
           ))}

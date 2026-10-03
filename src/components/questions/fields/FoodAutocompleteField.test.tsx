@@ -50,26 +50,22 @@ function pressEnter() {
 }
 
 describe('FoodAutocompleteField', () => {
-  it('shows suggestion chips only while typing and adds a known match without the guard', () => {
+  it('adds a known match without the guard and does not render suggestions under the field', () => {
     const onChange = vi.fn()
     renderField({ onChange, placeholder: 'Add another...' })
 
     expect(screen.queryByRole('listbox')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'French' })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Food suggestions' })).toBeNull()
 
     typeQuery('fren')
-
-    expect(screen.getByPlaceholderText('Add another...')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'French' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'American' })).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'French' }))
+    pressEnter()
 
     const joined = screen.getByRole('button', { name: 'Remove French' })
     expect(onChange).toHaveBeenCalledWith('french_restaurant')
     expect(joined.className).toContain('food-chip-join')
     expect(vi.mocked(checkFoodText)).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'French' })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Food suggestions' })).toBeNull()
+    expect(screen.getByPlaceholderText('Add another...')).toBeTruthy()
   })
 
   it('adds an exact label or value on enter and skips the model', () => {
@@ -130,8 +126,6 @@ describe('FoodAutocompleteField', () => {
     expect(input()).toHaveProperty('disabled', false)
 
     typeQuery('French')
-    expect(screen.getByRole('button', { name: 'French' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'French' }))
     pressEnter()
 
     expect(onChange).not.toHaveBeenCalled()
@@ -281,18 +275,18 @@ describe('FoodAutocompleteField', () => {
 
     scrollBy.mockClear()
     typeQuery('fren')
-    const selected = screen.getByRole('list', { name: 'Selected food' })
-    const suggestions = screen.getByRole('list', { name: 'Food suggestions' })
-    expect(
-      selected.compareDocumentPosition(suggestions) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'French' }))
+    expect(screen.queryByRole('list', { name: 'Food suggestions' })).toBeNull()
+    pressEnter()
     expect(scrollBy).not.toHaveBeenCalled()
     expect(input().parentElement?.parentElement?.className).toContain(
       'food-field',
     )
     expect(screen.queryByRole('list', { name: 'Food suggestions' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy()
+    const selected = screen.getByRole('list', { name: 'Selected food' })
+    expect(
+      input().compareDocumentPosition(selected) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 })
