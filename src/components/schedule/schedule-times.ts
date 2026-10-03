@@ -51,7 +51,11 @@ export function startOfLocalDay(today: Date) {
 
 export function visibleWeekDates(today: Date) {
   const start = startOfLocalDay(today)
-  return weekDates(today).filter((date) => date.getTime() >= start.getTime())
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    return date
+  })
 }
 
 export function shownWeekDates(today: Date, includedDates?: readonly string[]) {
@@ -100,8 +104,8 @@ export function parseIsoDate(value: string | undefined) {
 export function plannedDay(today: Date, planDate: string | undefined) {
   const parsed = parseIsoDate(planDate)
   if (!parsed) return today
-  const inWeek = weekDates(today).some((date) => isSameDay(date, parsed))
-  return inWeek ? parsed : today
+  const upcoming = visibleWeekDates(today)
+  return upcoming.some((date) => isSameDay(date, parsed)) ? parsed : today
 }
 
 export function isSameDay(left: Date, right: Date) {

@@ -48,16 +48,23 @@ describe('schedule views', () => {
     expect(today.getAttribute('aria-pressed')).toBe('true')
     expect(today.style.gridColumnStart).toBe('')
     const buttons = screen.getAllByRole('button')
-    expect(buttons).toHaveLength(2)
+    expect(buttons).toHaveLength(7)
     expect(buttons[0]).toBe(today)
+    expect(buttons.map((button) => button.textContent.slice(0, 2))).toEqual([
+      'Fr',
+      'Sa',
+      'Su',
+      'Mo',
+      'Tu',
+      'We',
+      'Th',
+    ])
     expect(buttons.some((button) => button.hasAttribute('disabled'))).toBe(
       false,
     )
-    const saturday = screen.getByRole('button', { name: /Sa/ })
-    expect(buttons[1]).toBe(saturday)
-    expect(saturday.style.gridColumnStart).toBe('')
+    const saturday = buttons[1]
     expect(saturday.textContent).toContain('Sa')
-    expect(screen.queryByRole('button', { name: /Su/ })).toBeNull()
+    expect(saturday.style.gridColumnStart).toBe('')
     const row = today.parentElement
     expect(row?.className).toContain('justify-start')
     expect(row?.className).not.toContain('grid-cols-7')
@@ -159,12 +166,15 @@ describe('schedule views', () => {
       'Th',
       'Fr',
       'Sa',
+      'Su',
+      'Mo',
+      'Tu',
     ])
+    expect(buttons).toHaveLength(7)
     expect(buttons[0]?.style.gridColumnStart).toBe('')
     expect(buttons.some((button) => button.hasAttribute('disabled'))).toBe(
       false,
     )
-    expect(screen.queryByRole('button', { name: /Su|Mo|Tu/ })).toBeNull()
   })
 
   it('selects today when the stored day is already past', () => {
@@ -180,8 +190,28 @@ describe('schedule views', () => {
     const today = screen.getByRole('button', { current: 'date' })
     expect(today.textContent).toContain('Fr')
     expect(today.getAttribute('aria-pressed')).toBe('true')
-    expect(screen.queryByRole('button', { name: /We/ })).toBeNull()
     expect(onSelectDay).toHaveBeenCalledWith('2026-10-02')
+  })
+
+  it('keeps a stored day that is inside the next seven days', () => {
+    const onSelectDay = vi.fn()
+    render(
+      <WeekSchedule
+        today={friday}
+        dateTime="Evening"
+        planDate="2026-10-05"
+        onSelectDay={onSelectDay}
+      />,
+    )
+
+    const buttons = screen.getAllByRole('button')
+    expect(buttons).toHaveLength(7)
+    const selected = screen.getByRole('button', { pressed: true })
+    expect(selected.textContent).toContain('Mo')
+    expect(selected.textContent).toContain('5')
+    expect(selected.textContent).toContain('Eve')
+    expect(buttons[0]?.getAttribute('aria-pressed')).toBe('false')
+    expect(onSelectDay).not.toHaveBeenCalled()
   })
 
   it('shows only the days and times the vibe check keeps', async () => {
@@ -248,12 +278,18 @@ describe('schedule views', () => {
     })
     expect(screen.getByRole('radio', { name: 'Anytime' })).toBeTruthy()
     expect(screen.getAllByRole('radio')).toHaveLength(6)
-    expect(week.querySelectorAll('button')).toHaveLength(2)
     const restored = [...week.querySelectorAll('button')]
-    expect(restored[0]?.textContent).toContain('Fr')
-    expect(restored[1]?.textContent).toContain('Sa')
+    expect(restored).toHaveLength(7)
+    expect(restored.map((button) => button.textContent.slice(0, 2))).toEqual([
+      'Fr',
+      'Sa',
+      'Su',
+      'Mo',
+      'Tu',
+      'We',
+      'Th',
+    ])
     expect(restored[0]?.style.gridColumnStart).toBe('')
-    expect(week.textContent).not.toContain('Su')
     expect(vibe).toHaveProperty('value', '')
     expect(
       screen.getByText('A typed phrase narrows the day and time.'),
@@ -281,8 +317,9 @@ describe('schedule views', () => {
     expect(screen.getByRole('radio', { name: 'Morning' })).toBeTruthy()
     expect(screen.getAllByRole('radio')).toHaveLength(6)
     const week = screen.getByRole('region', { name: 'This week' })
-    expect(week.querySelectorAll('button')).toHaveLength(2)
-    expect(week.textContent).toContain('Fr')
-    expect(week.textContent).not.toContain('Su')
+    const openDays = [...week.querySelectorAll('button')]
+    expect(openDays).toHaveLength(7)
+    expect(openDays[0]?.textContent).toContain('Fr')
+    expect(openDays[2]?.textContent?.slice(0, 2)).toBe('Su')
   })
 })

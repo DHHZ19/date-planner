@@ -18,17 +18,18 @@ describe('schedule times', () => {
     expect(days[5]?.getDate()).toBe(2)
   })
 
-  it('keeps today and later in this week, using the local date', () => {
+  it('keeps the next seven local days, starting today', () => {
     const days = visibleWeekDates(friday)
-    expect(days.map((date) => date.getDate())).toEqual([2, 3])
-    expect(days.map((date) => date.getDay())).toEqual([5, 6])
-    expect(
-      visibleWeekDates(new Date(2026, 9, 3, 9)).map((date) => date.getDate()),
-    ).toEqual([3])
+    expect(days).toHaveLength(7)
+    expect(days.map((date) => date.getDate())).toEqual([2, 3, 4, 5, 6, 7, 8])
+    expect(days.map((date) => date.getDay())).toEqual([5, 6, 0, 1, 2, 3, 4])
+    const saturday = visibleWeekDates(new Date(2026, 9, 3, 9))
+    expect(saturday).toHaveLength(7)
+    expect(saturday[0]?.getDate()).toBe(3)
+    expect(saturday[6]?.getDate()).toBe(9)
     const lateFriday = new Date(2026, 9, 2, 23, 30)
-    expect(visibleWeekDates(lateFriday).map((date) => date.getDate())).toEqual([
-      2, 3,
-    ])
+    expect(visibleWeekDates(lateFriday)[0]?.getDate()).toBe(2)
+    expect(visibleWeekDates(lateFriday)).toHaveLength(7)
   })
 
   it('spaces an evening plan from 6:00 PM', () => {
@@ -46,9 +47,11 @@ describe('schedule times', () => {
     expect(shortTimeLabel('Late Night')).toBe('Late')
   })
 
-  it('keeps a selected day inside this week', () => {
+  it('keeps a stored day inside the next seven days', () => {
     expect(plannedDay(friday, '2026-10-03').getDate()).toBe(3)
+    expect(plannedDay(friday, '2026-10-05').getDate()).toBe(5)
     expect(plannedDay(friday, '2026-09-01').getDate()).toBe(2)
+    expect(plannedDay(friday, '2026-10-20').getDate()).toBe(2)
     expect(plannedDay(friday, undefined).getDate()).toBe(2)
   })
 
