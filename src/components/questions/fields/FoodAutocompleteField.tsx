@@ -2,66 +2,93 @@ import { useEffect, useRef, useState } from 'react'
 import { FOOD_SUGGESTIONS } from '../../../constants/food-suggestions'
 import type { FoodSuggestion } from '../../../constants/food-suggestions'
 import { scrollDeltaAboveKeyboard } from '#/lib/keyboard-obstruction'
+import { checkFoodText } from '#/server-functions/check-food-text'
 import { baseFieldClassName } from './field-classes'
 
-const foodFieldShellClassName = baseFieldClassName
-  .replace('px-4 py-3 sm:px-4 sm:py-3.5', 'overflow-hidden p-0')
-  .replaceAll('focus:', 'focus-within:')
-
 const MAX_FOOD_SELECTIONS = 4
-const VISIBLE_OPTION_ROWS = 6
+const MAX_VISIBLE_SUGGESTIONS = 8
 
-const suggestionValues = new Set(
-  FOOD_SUGGESTIONS.map((suggestion) => suggestion.value),
+const suggestionByValue = new Map(
+  FOOD_SUGGESTIONS.map((suggestion) => [suggestion.value, suggestion]),
 )
 
-function splitStoredValues(value: string | undefined) {
-  const extras: string[] = []
-  const selected: string[] = []
+const foodShellClassName = `${baseFieldClassName
+  .replaceAll('focus:', 'focus-within:')
+  .replace(
+    'transition-all',
+    'transition-[border-color,box-shadow,background-color]',
+  )} focus-within:shadow-[0_0_28px_rgba(163,58,74,0.45)]`
+
+function shellClassName(lit: boolean, rejected: boolean) {
+  if (rejected) {
+    return foodShellClassName
+      .replace('border-[var(--ui-border)]', 'border-[var(--ui-danger)]')
+      .replace(
+        'focus-within:border-[var(--love-300)]',
+        'focus-within:border-[var(--ui-danger)]',
+      )
+  }
+  if (lit) {
+    return `${foodShellClassName.replace(
+      'border-[var(--ui-border)]',
+      'border-[var(--love-300)]',
+    )} shadow-[0_0_28px_rgba(163,58,74,0.45)]`
+  }
+  return foodShellClassName
+}
+
+const suggestionChipClassName =
+  'min-h-11 rounded-2xl border-2 border-b-4 border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2 text-sm font-semibold text-[var(--ui-text)] transition-colors duration-150 hover:bg-[var(--ui-surface-soft)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]'
+
+const committedChipClassName =
+  'inline-flex min-h-11 max-w-full items-center gap-2 rounded-2xl border-2 border-b-4 border-[var(--love-900)] bg-[var(--love-700)] px-3 py-2 text-sm font-semibold text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]'
+
+function tokensFromCsv(value: string | undefined) {
   const seen = new Set<string>()
+  const tokens: string[] = []
 
   for (const part of (value ?? '').split(',')) {
     const trimmed = part.trim()
     if (!trimmed || seen.has(trimmed)) continue
     seen.add(trimmed)
-    if (suggestionValues.has(trimmed)) {
-      if (selected.length < MAX_FOOD_SELECTIONS) selected.push(trimmed)
-    } else {
-      extras.push(trimmed)
-    }
+    tokens.push(trimmed)
   }
 
-  return { extras, selected }
+  return tokens
 }
 
-function groupsForSuggestions() {
-  const groups: Array<{
-    label: string
-    items: FoodSuggestion[]
-  }> = []
-
-  for (const suggestion of FOOD_SUGGESTIONS) {
-    const label = suggestion.category ?? 'Suggestions'
-    const group = groups.find((item) => item.label === label)
-    if (group) {
-      group.items.push(suggestion)
-    } else {
-      groups.push({ label, items: [suggestion] })
-    }
-  }
-
-  return groups
+function labelFor(token: string) {
+  return suggestionByValue.get(token)?.label ?? token
 }
 
-const suggestionGroups = groupsForSuggestions()
+function suggestionForEntry(text: string) {
+  const term = text.trim().toLowerCase()
+  if (!term) return undefined
 
-function matchesQuery(suggestion: FoodSuggestion, query: string) {
-  const term = query.toLowerCase().trim()
-  if (!term) return true
-  return (
-    suggestion.label.toLowerCase().includes(term) ||
-    suggestion.value.toLowerCase().includes(term)
+  const exact = FOOD_SUGGESTIONS.find(
+    (suggestion) =>
+      suggestion.label.toLowerCase() === term ||
+      suggestion.value.toLowerCase() === term,
   )
+  if (exact) return exact
+
+  const partial = FOOD_SUGGESTIONS.filter(
+    (suggestion) =>
+      suggestion.label.toLowerCase().includes(term) ||
+      suggestion.value.toLowerCase().includes(term),
+  )
+  return partial.length === 1 ? partial[0] : undefined
+}
+
+function visibleSuggestions(query: string, tokens: string[]) {
+  const term = query.trim().toLowerCase()
+  if (!term) return []
+  const taken = new Set(tokens)
+  return FOOD_SUGGESTIONS.filter(
+    (suggestion) =>
+      suggestion.label.toLowerCase().includes(term) &&
+      !taken.has(suggestion.value),
+  ).slice(0, MAX_VISIBLE_SUGGESTIONS)
 }
 
 function scrollFieldAboveKeyboard(field: HTMLElement) {
@@ -94,24 +121,27 @@ export default function FoodAutocompleteField({
   placeholder: string
   onChange: (value: string | undefined) => void
   resetKey: number | string
-  className?: string
 }) {
   const fieldRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const selectRef = useRef<HTMLSelectElement>(null)
-  const listId = `${id}-options`
+  const tokensRef = useRef<string[]>(tokensFromCsv(defaultValue))
+  const requestRef = useRef(0)
+  const abortRef = useRef<AbortController | null>(null)
   const [query, setQuery] = useState('')
-  const [extras, setExtras] = useState(
-    () => splitStoredValues(defaultValue).extras,
-  )
-  const [selected, setSelected] = useState(
-    () => splitStoredValues(defaultValue).selected,
-  )
+  const [tokens, setTokens] = useState(() => tokensFromCsv(defaultValue))
+  const [rejection, setRejection] = useState('')
+  const [shaking, setShaking] = useState(false)
+  const [lit, setLit] = useState(false)
+  const [popped, setPopped] = useState<string | null>(null)
+  const capId = `${id}-cap`
+  const rejectId = `${id}-reject`
+  const atCap = tokens.length >= MAX_FOOD_SELECTIONS
+  const suggestions = visibleSuggestions(query, tokens)
 
   useEffect(() => {
-    const next = splitStoredValues(defaultValue)
-    setExtras(next.extras)
-    setSelected(next.selected)
+    const next = tokensFromCsv(defaultValue)
+    tokensRef.current = next
+    setTokens(next)
   }, [defaultValue, resetKey])
 
   useEffect(() => {
@@ -124,11 +154,7 @@ export default function FoodAutocompleteField({
 
     const onResize = () => {
       const field = fieldRef.current
-      const active = document.activeElement
-      if (
-        field &&
-        (active === inputRef.current || active === selectRef.current)
-      ) {
+      if (field && document.activeElement === inputRef.current) {
         scrollFieldAboveKeyboard(field)
       }
     }
@@ -137,81 +163,200 @@ export default function FoodAutocompleteField({
     return () => viewport.removeEventListener('resize', onResize)
   }, [])
 
-  const commit = (nextSelected: string[]) => {
-    setSelected(nextSelected)
-    const combined = [...extras, ...nextSelected]
-    onChange(combined.length > 0 ? combined.join(',') : undefined)
-  }
-
-  const visibleGroups = suggestionGroups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter(
-        (suggestion) =>
-          matchesQuery(suggestion, query) ||
-          selected.includes(suggestion.value),
-      ),
-    }))
-    .filter((group) => group.items.length > 0)
+  useEffect(() => {
+    return () => abortRef.current?.abort()
+  }, [])
 
   const keepFieldInView = () => {
     const field = fieldRef.current
     if (field) scrollFieldAboveKeyboard(field)
   }
 
-  return (
-    <div ref={fieldRef} className={foodFieldShellClassName}>
-      <input
-        ref={inputRef}
-        id={id}
-        type="text"
-        value={query}
-        placeholder={placeholder}
-        aria-controls={listId}
-        aria-describedby={describedBy}
-        autoComplete="off"
-        onFocus={keepFieldInView}
-        onChange={(event) => setQuery(event.target.value)}
-        className="w-full border-b border-[var(--ui-border)] bg-transparent px-4 py-3 text-base outline-none placeholder:font-medium placeholder:text-[var(--ui-text-muted)]"
-      />
-      <select
-        ref={selectRef}
-        id={listId}
-        name={name}
-        multiple
-        size={VISIBLE_OPTION_ROWS}
-        aria-label="Food preferences"
-        value={selected}
-        onFocus={keepFieldInView}
-        onChange={(event) => {
-          const picked = Array.from(
-            event.currentTarget.selectedOptions,
-            (option) => option.value,
-          )
-          if (picked.length <= MAX_FOOD_SELECTIONS) {
-            commit(picked)
-            return
-          }
+  const lightUp = (token: string) => {
+    setLit(true)
+    setPopped(token)
+    window.setTimeout(() => {
+      setLit(false)
+      setPopped((current) => (current === token ? null : current))
+    }, 420)
+  }
 
-          const alreadySelected = new Set(selected)
-          const kept = [
-            ...selected.filter((value) => picked.includes(value)),
-            ...picked.filter((value) => !alreadySelected.has(value)),
-          ].slice(0, MAX_FOOD_SELECTIONS)
-          commit(kept)
-        }}
-        className="w-full bg-transparent text-base"
+  const showReject = (text: string) => {
+    setRejection(`${text.trim()} is not a food choice.`)
+    setShaking(true)
+    window.setTimeout(() => setShaking(false), 520)
+  }
+
+  const commitTokens = (next: string[], added: string) => {
+    tokensRef.current = next
+    setTokens(next)
+    setQuery('')
+    setRejection('')
+    onChange(next.length > 0 ? next.join(',') : undefined)
+    lightUp(added)
+  }
+
+  const addToken = (token: string) => {
+    const trimmed = token.trim()
+    if (!trimmed || trimmed.includes(',')) {
+      showReject(trimmed || token)
+      return
+    }
+    const current = tokensRef.current
+    if (current.includes(trimmed)) {
+      setQuery('')
+      return
+    }
+    if (current.length >= MAX_FOOD_SELECTIONS) return
+    commitTokens([...current, trimmed], trimmed)
+  }
+
+  const cancelCheck = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    requestRef.current += 1
+  }
+
+  const addSuggestion = (suggestion: FoodSuggestion) => {
+    cancelCheck()
+    addToken(suggestion.value)
+  }
+
+  const commitQuery = () => {
+    const trimmed = query.trim()
+    if (!trimmed) return
+    if (tokensRef.current.length >= MAX_FOOD_SELECTIONS) return
+    if (trimmed.includes(',')) {
+      showReject(trimmed)
+      return
+    }
+
+    const suggestion = suggestionForEntry(trimmed)
+    if (suggestion) {
+      addSuggestion(suggestion)
+      return
+    }
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    const requestId = ++requestRef.current
+    const submitted = trimmed
+
+    void checkFoodText({ data: { text: submitted }, signal: controller.signal })
+      .then((result) => {
+        if (requestId !== requestRef.current || controller.signal.aborted)
+          return
+        if (!result.ok) {
+          showReject(submitted)
+          return
+        }
+        addToken(result.normalized)
+      })
+      .catch(() => {
+        if (requestId !== requestRef.current || controller.signal.aborted)
+          return
+        showReject(submitted)
+      })
+  }
+
+  const removeToken = (token: string) => {
+    const next = tokensRef.current.filter((item) => item !== token)
+    tokensRef.current = next
+    setTokens(next)
+    onChange(next.length > 0 ? next.join(',') : undefined)
+  }
+
+  const describedByIds = [describedBy, atCap ? capId : undefined, rejectId]
+    .filter(Boolean)
+    .join(' ')
+
+  return (
+    <div
+      ref={fieldRef}
+      className={shaking ? 'food-field-shake' : undefined}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' || event.target !== inputRef.current) return
+        event.preventDefault()
+        commitQuery()
+      }}
+    >
+      <div
+        className={shellClassName(lit, rejection.length > 0)}
+        data-lit={lit ? 'true' : undefined}
+        data-rejected={rejection ? 'true' : undefined}
       >
-        {visibleGroups.map((group) => (
-          <optgroup key={group.label} label={group.label}>
-            {group.items.map((suggestion) => (
-              <option key={suggestion.value} value={suggestion.value}>
+        <input
+          ref={inputRef}
+          id={id}
+          type="text"
+          value={query}
+          placeholder={placeholder}
+          aria-describedby={describedByIds}
+          autoComplete="off"
+          enterKeyHint="done"
+          onFocus={keepFieldInView}
+          onChange={(event) => setQuery(event.target.value)}
+          className="w-full bg-transparent text-base font-medium text-[var(--ui-text)] outline-none placeholder:font-medium placeholder:text-[var(--ui-text-muted)]"
+        />
+        <input type="hidden" name={name} value={tokens.join(',')} />
+      </div>
+
+      {suggestions.length > 0 ? (
+        <ul aria-label="Food suggestions" className="mt-2 flex flex-wrap gap-2">
+          {suggestions.map((suggestion) => (
+            <li key={suggestion.value}>
+              <button
+                type="button"
+                className={suggestionChipClassName}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => addSuggestion(suggestion)}
+              >
                 {suggestion.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {tokens.length > 0 ? (
+        <ul aria-label="Selected food" className="mt-2 flex flex-wrap gap-2">
+          {tokens.map((token) => (
+            <li key={token}>
+              <button
+                type="button"
+                className={`${committedChipClassName} ${popped === token ? 'food-chip-pop' : ''}`}
+                aria-label={`Remove ${labelFor(token)}`}
+                onClick={() => removeToken(token)}
+              >
+                <span className="truncate">{labelFor(token)}</span>
+                <span aria-hidden="true">×</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {atCap ? (
+        <p
+          id={capId}
+          className="mt-2 text-sm font-semibold text-[var(--love-700)]"
+        >
+          You can't add more than 4 selections.
+        </p>
+      ) : null}
+
+      <p
+        id={rejectId}
+        role="status"
+        className={
+          rejection
+            ? 'mt-2 text-sm font-semibold text-[var(--ui-danger)]'
+            : 'sr-only'
+        }
+      >
+        {rejection}
+      </p>
     </div>
   )
 }

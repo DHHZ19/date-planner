@@ -4,10 +4,15 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import FoodAutocompleteField from '#/components/questions/fields/FoodAutocompleteField'
+import { checkFoodText } from '#/server-functions/check-food-text'
+
+vi.mock('#/server-functions/check-food-text', () => ({
+  checkFoodText: vi.fn(),
+}))
 
 afterEach(() => {
   cleanup()
-  vi.restoreAllMocks()
+  vi.clearAllMocks()
 })
 
 function renderField(
@@ -32,99 +37,182 @@ function renderField(
   )
 }
 
-function listbox() {
-  const select = screen.getByRole('listbox', { name: 'Food preferences' })
-  if (!(select instanceof HTMLSelectElement)) {
-    throw new Error('expected a select')
-  }
-  return select
+function input() {
+  return screen.getByRole('textbox', { name: 'Food' })
 }
 
-function choose(values: string[]) {
-  const select = listbox()
-  const chosen = new Set(values)
-  for (const option of select.options) {
-    option.selected = chosen.has(option.value)
-  }
-  fireEvent.change(select)
+function typeQuery(value: string) {
+  fireEvent.change(input(), { target: { value } })
+}
+
+function pressEnter() {
+  fireEvent.keyDown(input(), { key: 'Enter' })
 }
 
 describe('FoodAutocompleteField', () => {
-  it('keeps a native list, preserves other stored values, and caps at four', () => {
+  it('shows suggestion chips only while typing and adds a known match without the model', () => {
     const onChange = vi.fn()
-    renderField({
-      defaultValue: 'Italian,chinese_restaurant',
-      onChange,
-    })
+    renderField({ onChange, placeholder: 'Add another...' })
 
-    const select = listbox()
-    const filter = screen.getByRole('textbox', { name: 'Food' })
-    expect(select).toHaveProperty('multiple', true)
-    expect(select).toHaveProperty('size', 6)
-    expect(filter.getAttribute('aria-controls')).toBe(select.id)
-    expect(select.parentElement?.className).toContain('rounded-2xl')
-    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
-    expect(screen.getByRole('option', { name: 'Chinese' })).toHaveProperty(
-      'selected',
-      true,
-    )
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'French' })).toBeNull()
 
-    choose([
-      'chinese_restaurant',
-      'french_restaurant',
-      'greek_restaurant',
-      'indian_restaurant',
-    ])
-    choose([
-      'american_restaurant',
-      'chinese_restaurant',
-      'french_restaurant',
-      'greek_restaurant',
-      'indian_restaurant',
-    ])
-
-    expect(onChange).toHaveBeenLastCalledWith(
-      'Italian,chinese_restaurant,french_restaurant,greek_restaurant,indian_restaurant',
-    )
-    expect(screen.getByRole('option', { name: 'American' })).toHaveProperty(
-      'selected',
-      false,
-    )
-  })
-
-  it('filters the list and keeps a selected option that does not match', () => {
-    const onChange = vi.fn()
-    renderField({
-      defaultValue: 'Italian,chinese_restaurant',
-      placeholder: 'Add another...',
-      onChange,
-    })
-
-    fireEvent.change(screen.getByRole('textbox', { name: 'Food' }), {
-      target: { value: 'fren' },
-    })
+    typeQuery('fren')
 
     expect(screen.getByPlaceholderText('Add another...')).toBeTruthy()
-    expect(screen.getByRole('option', { name: 'French' })).toBeTruthy()
-    expect(screen.getByRole('option', { name: 'Chinese' })).toHaveProperty(
-      'selected',
-      true,
-    )
-    expect(screen.queryByRole('option', { name: 'American' })).toBeNull()
-    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'French' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'American' })).toBeNull()
 
-    choose(['chinese_restaurant', 'french_restaurant'])
-    expect(onChange).toHaveBeenLastCalledWith(
-      'Italian,chinese_restaurant,french_restaurant',
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'French' }))
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Food' }), {
-      target: { value: '' },
-    })
-    expect(screen.getByRole('option', { name: 'American' })).toBeTruthy()
+    expect(onChange).toHaveBeenCalledWith('french_restaurant')
+    expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy()
+    expect(vi.mocked(checkFoodText)).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'French' })).toBeNull()
   })
 
-  it('scrolls the filter and list above the keyboard on focus', () => {
+  it('adds an exact label or value on enter and skips the model', () => {
+    const onChange = vi.fn()
+    renderField({ onChange })
+
+    typeQuery('sushi')
+    pressEnter()
+
+    expect(onChange).toHaveBeenCalledWith('sushi')
+    expect(screen.getByRole('button', { name: 'Remove Sushi' })).toBeTruthy()
+    expect(vi.mocked(checkFoodText)).not.toHaveBeenCalled()
+  })
+
+  it('keeps stored values outside the suggestion list and round-trips commas', () => {
+    const onChange = vi.fn()
+    renderField({
+      defaultValue: 'Italian, chinese_restaurant',
+      onChange,
+    })
+
+    expect(screen.getByRole('button', { name: 'Remove Italian' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Remove Chinese' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Chinese' }))
+
+    expect(onChange).toHaveBeenCalledWith('Italian')
+    expect(screen.getByRole('button', { name: 'Remove Italian' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Remove Chinese' })).toBeNull()
+  })
+
+  it('blocks the fifth add and keeps the field usable', () => {
+    const onChange = vi.fn()
+    renderField({
+      defaultValue: 'Italian,Sushi,Burgers,Coffee',
+      onChange,
+    })
+
+    expect(
+      screen.getByText("You can't add more than 4 selections."),
+    ).toBeTruthy()
+    expect(input()).toHaveProperty('disabled', false)
+
+    typeQuery('French')
+    expect(screen.getByRole('button', { name: 'French' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'French' }))
+    pressEnter()
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Remove French' })).toBeNull()
+    expect(vi.mocked(checkFoodText)).not.toHaveBeenCalled()
+  })
+
+  it('does not store junk from the missing-key check and leaves the chip off', async () => {
+    const onChange = vi.fn()
+    vi.mocked(checkFoodText).mockResolvedValue({
+      ok: false,
+      normalized: '',
+      reason: 'Food check is unavailable.',
+    })
+    renderField({ onChange, defaultValue: 'chinese_restaurant' })
+
+    typeQuery('zzzznotfood')
+    pressEnter()
+
+    expect(await screen.findByRole('status')).toHaveProperty(
+      'textContent',
+      'zzzznotfood is not a food choice.',
+    )
+    expect(onChange).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole('button', { name: 'Remove zzzznotfood' }),
+    ).toBeNull()
+    expect(screen.getByRole('button', { name: 'Remove Chinese' })).toBeTruthy()
+    expect(vi.mocked(checkFoodText)).toHaveBeenCalledOnce()
+  })
+
+  it('stores a free-text phrase only when the check accepts it', async () => {
+    const onChange = vi.fn()
+    vi.mocked(checkFoodText).mockResolvedValue({
+      ok: true,
+      normalized: 'Hand pies',
+    })
+    renderField({ onChange })
+
+    typeQuery('hand pies')
+    pressEnter()
+
+    expect(
+      await screen.findByRole('button', { name: 'Remove Hand pies' }),
+    ).toBeTruthy()
+    expect(onChange).toHaveBeenCalledWith('Hand pies')
+  })
+
+  it('rejects a comma without calling the check', () => {
+    const onChange = vi.fn()
+    renderField({ onChange })
+
+    typeQuery('pizza, pasta')
+    pressEnter()
+
+    expect(screen.getByRole('status').textContent).toContain(
+      'is not a food choice.',
+    )
+    expect(onChange).not.toHaveBeenCalled()
+    expect(vi.mocked(checkFoodText)).not.toHaveBeenCalled()
+  })
+
+  it('aborts the previous free-text check when another is submitted', async () => {
+    const onChange = vi.fn()
+    let rejectFirst: ((error: Error) => void) | undefined
+    vi.mocked(checkFoodText).mockImplementation(({ signal }) => {
+      if (vi.mocked(checkFoodText).mock.calls.length === 1) {
+        return new Promise((_, reject) => {
+          rejectFirst = reject
+          signal?.addEventListener('abort', () => {
+            reject(new DOMException('aborted', 'AbortError'))
+          })
+        })
+      }
+      return Promise.resolve({
+        ok: true,
+        normalized: 'Hand pies',
+      })
+    })
+    renderField({ onChange })
+
+    typeQuery('zzzznotfood')
+    pressEnter()
+    typeQuery('hand pies')
+    pressEnter()
+
+    expect(
+      await screen.findByRole('button', { name: 'Remove Hand pies' }),
+    ).toBeTruthy()
+    expect(onChange).toHaveBeenCalledWith('Hand pies')
+    expect(
+      screen.queryByRole('button', { name: 'Remove zzzznotfood' }),
+    ).toBeNull()
+    rejectFirst?.(new DOMException('aborted', 'AbortError'))
+    expect(onChange).toHaveBeenCalledOnce()
+  })
+
+  it('scrolls the shell above the keyboard on focus', () => {
     const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {})
     Object.defineProperty(window, 'visualViewport', {
       configurable: true,
@@ -150,9 +238,8 @@ describe('FoodAutocompleteField', () => {
     })
 
     renderField()
-    fireEvent.focus(screen.getByRole('textbox', { name: 'Food' }))
-    fireEvent.focus(listbox())
+    fireEvent.focus(input())
+
     expect(scrollBy).toHaveBeenCalledWith(0, 488)
-    expect(scrollBy).toHaveBeenCalledTimes(2)
   })
 })
