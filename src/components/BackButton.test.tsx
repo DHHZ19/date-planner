@@ -25,7 +25,8 @@ describe('BackButton', () => {
     expect(button.className).toContain('min-h-11')
     expect(button.className).toContain('min-w-11')
     expect(button.getAttribute('data-held')).toBe('false')
-    expect(button.className).toContain('scale-100')
+    expect(button.className).toContain('back-hold-button')
+    expect(button.className).not.toContain('scale-100')
     expect(button.className).not.toContain('scale-[1.34]')
 
     fireEvent.click(button)
@@ -35,16 +36,11 @@ describe('BackButton', () => {
   it('grows on press and springs back on release, cancel, and leave', () => {
     const { button } = renderButton()
 
-    expect(button.className).toContain('cubic-bezier(0.22,1.35,0.36,1)')
-
     fireEvent.pointerDown(button, { button: 0 })
     expect(button.getAttribute('data-held')).toBe('true')
-    expect(button.className).toContain('scale-[1.34]')
-    expect(button.className).not.toContain('scale-100')
 
     fireEvent.pointerUp(button)
     expect(button.getAttribute('data-held')).toBe('false')
-    expect(button.className).toContain('scale-100')
 
     fireEvent.pointerDown(button, { button: 0 })
     fireEvent.pointerCancel(button)
@@ -53,7 +49,6 @@ describe('BackButton', () => {
     fireEvent.pointerDown(button, { button: 0 })
     fireEvent.pointerLeave(button)
     expect(button.getAttribute('data-held')).toBe('false')
-    expect(button.className).toContain('scale-100')
   })
 
   it('does not grow for a non-primary pointer', () => {
@@ -61,6 +56,5 @@ describe('BackButton', () => {
 
     fireEvent.pointerDown(button, { button: 2 })
     expect(button.getAttribute('data-held')).toBe('false')
-    expect(button.className).toContain('scale-100')
   })
 })

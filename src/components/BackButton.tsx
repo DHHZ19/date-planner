@@ -8,9 +8,6 @@ type BackButtonProps = {
   ariaLabel?: string
 }
 
-const pressSpringClassName =
-  'motion-safe:[transition:scale_320ms_cubic-bezier(0.22,1.35,0.36,1)]!'
-
 export function BackButton({
   onClick,
   label = 'Back',
@@ -41,9 +38,7 @@ export function BackButton({
       aria-label={ariaLabel}
       data-held={held ? 'true' : 'false'}
       className={[
-        'inline-flex min-h-11 min-w-11 origin-center cursor-pointer items-center justify-center gap-1.5 rounded-full bg-[var(--ui-surface)]/80 px-3.5 text-sm font-semibold text-[var(--ui-text-muted)] shadow-sm ring-1 ring-[var(--ui-border)] backdrop-blur-md select-none hover:bg-[var(--ui-surface)] hover:text-[var(--ui-text)] hover:shadow-md focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]',
-        pressSpringClassName,
-        held ? 'motion-safe:scale-[1.34]' : 'scale-100',
+        'back-hold-button inline-flex min-h-11 min-w-11 origin-center cursor-pointer items-center justify-center gap-1.5 rounded-full bg-[var(--ui-surface)]/80 px-3.5 text-sm font-semibold text-[var(--ui-text-muted)] shadow-sm ring-1 ring-[var(--ui-border)] backdrop-blur-md select-none hover:bg-[var(--ui-surface)] hover:text-[var(--ui-text)] hover:shadow-md focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]',
       ].join(' ')}
     >
       <svg
