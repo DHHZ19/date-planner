@@ -8,9 +8,11 @@ import DateTimeField from '#/components/questions/fields/DateTimeField'
 import QuickFoodField from '#/components/questions/fields/QuickFoodField'
 import PlanTypeField from '#/components/questions/fields/PlanTypeField'
 import ErrorBanner from '#/components/ErrorBanner'
-import { getRandomCuisineSurprise } from '#/constants/food-suggestions'
+import { ACTIVITY_SUGGESTIONS } from '#/constants/activity-suggestions'
 import { useKeyboardObstruction } from '#/lib/keyboard-obstruction'
+import { typesafeFixtureRequested } from '#/lib/typesafe-fixture'
 import { startSafeViewTransition } from '#/lib/startSafeViewTransition'
+import { surpriseDate } from '#/server-functions/check-surprise-date'
 
 const PLAN_TYPE_HELP_ITEMS = [
   {
@@ -43,6 +45,7 @@ export function QuickBrowse() {
   const {
     search,
     updateField,
+    updateFields,
     toggleCsvFieldValue,
     getCsvFieldValues,
     setPlanDate,
@@ -101,10 +104,29 @@ export function QuickBrowse() {
     updateField('activitySearchMode', 'browse')
 
     let finalFood = search.food
+    let finalActivity = search.activityTypes
+    let finalTime = search.dateTime
     if (wantsRestaurant && (!finalFood || finalFood.trim().length === 0)) {
-      // If "Surprise me" is active (empty food), pick broad cuisines on submit.
-      finalFood = getRandomCuisineSurprise()
-      updateField('food', finalFood)
+      try {
+        const surprise = await surpriseDate({
+          data: { fixture: typesafeFixtureRequested() },
+        })
+        if (surprise.status === 'local') {
+          finalFood = surprise.food
+          updateField('food', finalFood)
+        } else if (surprise.status === 'applied') {
+          finalFood = surprise.food
+          finalActivity = surprise.activity
+          finalTime = surprise.time
+          updateFields({
+            food: surprise.food,
+            activityTypes: surprise.activity,
+            dateTime: surprise.time,
+          })
+        }
+      } catch {
+        finalFood = search.food
+      }
     } else if (!wantsRestaurant) {
       finalFood = undefined
       updateField('food', undefined)
@@ -115,6 +137,8 @@ export function QuickBrowse() {
         ...search,
         activitySearchMode: 'browse',
         food: finalFood,
+        activityTypes: finalActivity,
+        dateTime: finalTime,
       },
       selectedPosition,
     })
@@ -254,7 +278,24 @@ export function QuickBrowse() {
             <QuickFoodField
               value={search.food}
               onChange={(val) => updateField('food', val)}
+              onApplySurprise={(plan) =>
+                updateFields({
+                  food: plan.food,
+                  activityTypes: plan.activity,
+                  dateTime: plan.time,
+                })
+              }
             />
+            {search.activityTypes ? (
+              <p className="mt-3 text-sm font-semibold text-[var(--love-700)]">
+                Activity{' '}
+                <span className="inline-flex min-h-11 items-center rounded-2xl border-2 border-b-4 border-[var(--love-900)] bg-[var(--love-700)] px-3 py-2 text-white">
+                  {ACTIVITY_SUGGESTIONS.find(
+                    (item) => item.value === search.activityTypes,
+                  )?.label ?? search.activityTypes}
+                </span>
+              </p>
+            ) : null}
           </section>
         )}
 

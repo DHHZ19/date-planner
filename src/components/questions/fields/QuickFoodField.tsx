@@ -3,7 +3,8 @@ import FoodAutocompleteField, {
   visibleFoodSuggestions,
 } from './FoodAutocompleteField'
 import type { FoodAutocompleteFieldHandle } from './FoodAutocompleteField'
-import { getRandomCuisineSurprise } from '#/constants/food-suggestions'
+import { typesafeFixtureRequested } from '#/lib/typesafe-fixture'
+import { surpriseDate } from '#/server-functions/check-surprise-date'
 
 const QUICK_FOOD_OPTIONS = [
   { label: 'Italian', value: 'Italian' },
@@ -26,12 +27,20 @@ function choiceChipClassName(selected: boolean) {
 export default function QuickFoodField({
   value,
   onChange,
+  onApplySurprise,
 }: {
   value: string | undefined
   onChange: (value: string | undefined) => void
+  onApplySurprise?: (plan: {
+    food: string
+    activity: string
+    time: string
+  }) => void
 }) {
   const actionsRef = useRef<FoodAutocompleteFieldHandle | null>(null)
+  const requestRef = useRef(0)
   const [query, setQuery] = useState('')
+  const [surprisePending, setSurprisePending] = useState(false)
   const selectedValues = useMemo(() => {
     return (value ?? '')
       .split(',')
@@ -53,12 +62,31 @@ export default function QuickFoodField({
 
   const handleSurpriseClick = () => {
     if (!isSurprise) {
-      // If we have selections, clear them to return to "Surprise me" mode
       onChange(undefined)
-    } else {
-      // If already in "Surprise me" mode, act as a "Spin the wheel" button
-      onChange(getRandomCuisineSurprise())
+      return
     }
+    if (surprisePending) return
+
+    const requestId = ++requestRef.current
+    setSurprisePending(true)
+    void surpriseDate({ data: { fixture: typesafeFixtureRequested() } })
+      .then((result) => {
+        if (requestId !== requestRef.current) return
+        if (result.status === 'local') {
+          onChange(result.food)
+          return
+        }
+        if (result.status === 'applied') {
+          if (onApplySurprise) onApplySurprise(result)
+          else onChange(result.food)
+        }
+      })
+      .catch(() => {
+        // A failed surprise leaves food, activity, and time as they are.
+      })
+      .finally(() => {
+        if (requestId === requestRef.current) setSurprisePending(false)
+      })
   }
 
   return (
@@ -84,6 +112,7 @@ export default function QuickFoodField({
               <button
                 type="button"
                 onClick={handleSurpriseClick}
+                aria-busy={surprisePending}
                 className={choiceChipClassName(isSurprise)}
               >
                 Surprise me

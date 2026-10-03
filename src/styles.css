@@ -412,6 +412,8 @@ a {
 .food-field,
 .food-field *,
 .food-choice-row,
-.food-choice-row * {
+.food-choice-row *,
+.activity-field,
+.activity-field * {
   overflow-anchor: none;
 }

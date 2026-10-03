@@ -1,13 +1,24 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import QuickFoodField from '#/components/questions/fields/QuickFoodField'
 import { checkFoodText } from '#/server-functions/check-food-text'
+import { surpriseDate } from '#/server-functions/check-surprise-date'
 
 vi.mock('#/server-functions/check-food-text', () => ({
   checkFoodText: vi.fn(),
+}))
+
+vi.mock('#/server-functions/check-surprise-date', () => ({
+  surpriseDate: vi.fn(),
 }))
 
 afterEach(() => {
@@ -111,5 +122,43 @@ describe('QuickFoodField', () => {
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Remove French' })).toBeNull()
     expect(vi.mocked(checkFoodText)).not.toHaveBeenCalled()
+  })
+
+  it('applies a surprise only through the returned plan and leaves fields alone when nothing applies', async () => {
+    const onChange = vi.fn()
+    const onApplySurprise = vi.fn()
+    vi.mocked(surpriseDate).mockResolvedValueOnce({
+      status: 'applied',
+      food: 'sushi',
+      activity: 'museum',
+      time: 'Evening',
+    })
+    render(
+      <QuickFoodField
+        value={undefined}
+        onChange={onChange}
+        onApplySurprise={onApplySurprise}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Surprise me' }))
+
+    await waitFor(() => {
+      expect(onApplySurprise).toHaveBeenCalledWith({
+        status: 'applied',
+        food: 'sushi',
+        activity: 'museum',
+        time: 'Evening',
+      })
+    })
+    expect(onChange).not.toHaveBeenCalled()
+
+    vi.mocked(surpriseDate).mockResolvedValueOnce({ status: 'unchanged' })
+    fireEvent.click(screen.getByRole('button', { name: 'Surprise me' }))
+    await waitFor(() => {
+      expect(vi.mocked(surpriseDate)).toHaveBeenCalledTimes(2)
+    })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onApplySurprise).toHaveBeenCalledOnce()
   })
 })

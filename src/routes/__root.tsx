@@ -10,6 +10,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
 import appCss from '../styles.css?url'
+import TypeSafeFixtureNote from '#/components/TypeSafeFixtureNote'
 
 import type { QueryClient } from '@tanstack/react-query'
 
@@ -73,6 +74,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="font-sans [overflow-wrap:anywhere] antialiased selection:bg-[rgba(79,184,178,0.24)]">
         {children}
+        <TypeSafeFixtureNote />
         <TanStackDevtools
           config={{
             position: 'bottom-right',

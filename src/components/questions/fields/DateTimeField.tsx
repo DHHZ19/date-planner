@@ -1,6 +1,15 @@
 import { DATE_TIME_OPTIONS } from '#/components/questions/question-config'
 import { WeekSchedule } from '#/components/schedule/WeekSchedule'
+import {
+  fullWeekdayName,
+  toIsoDate,
+  weekDates,
+} from '#/components/schedule/schedule-times'
+import { typesafeFixtureRequested } from '#/lib/typesafe-fixture'
+import { checkVibeFit } from '#/server-functions/check-vibe-fit'
+import { baseFieldClassName } from '#/components/questions/fields/field-classes'
 import type { ElementType } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Clock,
   Infinity as InfinityIcon,
@@ -45,11 +54,109 @@ export default function DateTimeField({
   onChange: (value: string | undefined) => void
   onPlanDateChange?: (value: string) => void
 }) {
+  const [phrase, setPhrase] = useState('')
+  const [visibleDays, setVisibleDays] = useState<string[] | undefined>(
+    undefined,
+  )
+  const [visibleTimes, setVisibleTimes] = useState<string[] | undefined>(
+    undefined,
+  )
+  const requestRef = useRef(0)
+  const abortRef = useRef<AbortController | null>(null)
+  const timeOptions = visibleTimes?.length
+    ? DATE_TIME_OPTIONS.filter((option) => visibleTimes.includes(option))
+    : DATE_TIME_OPTIONS
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
+
+  const restoreAll = () => {
+    setVisibleDays(undefined)
+    setVisibleTimes(undefined)
+  }
+
+  const commitPhrase = () => {
+    const trimmed = phrase.trim()
+    if (!trimmed) {
+      abortRef.current?.abort()
+      requestRef.current += 1
+      restoreAll()
+      return
+    }
+
+    const today = new Date()
+    const days = weekDates(today).map((date) => ({
+      key: toIsoDate(date),
+      label: fullWeekdayName(date),
+    }))
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    const requestId = ++requestRef.current
+
+    void checkVibeFit({
+      data: {
+        phrase: trimmed,
+        days,
+        times: [...DATE_TIME_OPTIONS],
+        fixture: typesafeFixtureRequested(),
+      },
+      signal: controller.signal,
+    })
+      .then((result) => {
+        if (requestId !== requestRef.current || controller.signal.aborted)
+          return
+        if (result.status === 'all') {
+          restoreAll()
+          return
+        }
+        setVisibleDays(result.days)
+        setVisibleTimes(result.times)
+      })
+      .catch(() => {
+        if (requestId !== requestRef.current || controller.signal.aborted)
+          return
+        restoreAll()
+      })
+  }
+
   return (
     <fieldset id={id} aria-describedby={describedBy} className="mt-1">
       <legend className="sr-only">Select a time of day</legend>
+      <label
+        htmlFor={`${id}-vibe`}
+        className="mb-2 block text-sm font-semibold text-[var(--love-700)]"
+      >
+        Vibe
+      </label>
+      <input
+        id={`${id}-vibe`}
+        type="text"
+        value={phrase}
+        maxLength={80}
+        enterKeyHint="done"
+        autoComplete="off"
+        placeholder="rainy and close to home"
+        className={`${baseFieldClassName} mb-3`}
+        onChange={(event) => {
+          const next = event.target.value
+          setPhrase(next)
+          if (next.trim().length > 0) return
+          abortRef.current?.abort()
+          requestRef.current += 1
+          restoreAll()
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return
+          event.preventDefault()
+          commitPhrase()
+        }}
+      />
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-        {DATE_TIME_OPTIONS.map((option) => {
+        {timeOptions.map((option) => {
           const selected = value === option
           const Icon = OPTION_ICONS[option]
 
@@ -89,6 +196,7 @@ export default function DateTimeField({
       <WeekSchedule
         dateTime={value}
         planDate={planDate}
+        includedDates={visibleDays}
         onSelectDay={onPlanDateChange}
       />
     </fieldset>

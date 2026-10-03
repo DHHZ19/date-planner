@@ -12,11 +12,13 @@ export function WeekSchedule({
   today,
   dateTime,
   planDate,
+  includedDates,
   onSelectDay,
 }: {
   today?: Date
   dateTime?: string
   planDate?: string
+  includedDates?: readonly string[]
   onSelectDay?: (isoDate: string) => void
 }) {
   const [resolvedToday, setResolvedToday] = useState<Date | null>(today ?? null)
@@ -29,7 +31,10 @@ export function WeekSchedule({
 
   const mark = shortTimeLabel(dateTime)
   const selectedDay = plannedDay(resolvedToday, planDate)
-  const days = weekDates(resolvedToday)
+  const days = weekDates(resolvedToday).filter((date) => {
+    if (!includedDates || includedDates.length === 0) return true
+    return includedDates.includes(toIsoDate(date))
+  })
 
   return (
     <section

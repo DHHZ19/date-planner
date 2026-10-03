@@ -35,6 +35,46 @@ function normalizeRawValue(value: string | undefined) {
   return value ?? ''
 }
 
+export function findKnownSuggestion(
+  text: string,
+  suggestions: AutocompleteSuggestion[],
+) {
+  const term = text.trim().toLowerCase()
+  if (!term) return undefined
+
+  const exact = suggestions.find(
+    (suggestion) =>
+      suggestion.label.toLowerCase() === term ||
+      suggestion.value.toLowerCase() === term,
+  )
+  if (exact) return exact
+
+  const partial = suggestions.filter(
+    (suggestion) =>
+      suggestion.label.toLowerCase().includes(term) ||
+      suggestion.value.toLowerCase().includes(term),
+  )
+  return partial.length === 1 ? partial[0] : undefined
+}
+
+function markRejected(className: string | undefined, rejected: boolean) {
+  if (!className || !rejected) return className
+  return className
+    .replaceAll('border-[var(--ui-border)]', 'border-[var(--ui-danger)]')
+    .replaceAll(
+      'focus:border-[var(--love-300)]',
+      'focus:border-[var(--ui-danger)]',
+    )
+    .replaceAll(
+      'focus-within:border-[var(--love-300)]',
+      'focus-within:border-[var(--ui-danger)]',
+    )
+}
+
+export type CommittedTextResult =
+  | { ok: true; value: string }
+  | { ok: false; message: string }
+
 const NARROW_QUERY = '(max-width: 639px)'
 const FIELD_TOP_MARGIN = 12
 
@@ -132,7 +172,9 @@ export default function AutocompleteMultiSelectField({
   ariaLabel,
   resetKey,
   onChange,
+  onCommitText,
   className,
+  rootClassName,
   uncategorizedSectionLabel = 'Suggestions',
 }: {
   id: string
@@ -145,7 +187,12 @@ export default function AutocompleteMultiSelectField({
   ariaLabel: string
   resetKey: number | string
   onChange: (value: string | undefined) => void
+  onCommitText?: (
+    text: string,
+    signal: AbortSignal,
+  ) => Promise<CommittedTextResult>
   className?: string
+  rootClassName?: string
   uncategorizedSectionLabel?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -164,6 +211,12 @@ export default function AutocompleteMultiSelectField({
   const suppressNextOpenRef = useRef(false)
   const previousResetKeyRef = useRef(resetKey)
   const localRawValueRef = useRef(buildRawValue(parseCsv(defaultValue), ''))
+  const selectedValuesRef = useRef(selectedValues)
+  const requestRef = useRef(0)
+  const abortRef = useRef<AbortController | null>(null)
+  const [rejection, setRejection] = useState('')
+  const [risen, setRisen] = useState<string | null>(null)
+  selectedValuesRef.current = selectedValues
 
   const emitChange = (nextRawValue: string) => {
     localRawValueRef.current = nextRawValue
@@ -185,6 +238,12 @@ export default function AutocompleteMultiSelectField({
     setCurrentInput('')
     localRawValueRef.current = normalizeRawValue(defaultValue)
   }, [defaultValue, resetKey])
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
 
   const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues])
 
@@ -214,24 +273,31 @@ export default function AutocompleteMultiSelectField({
   }, [currentInput, suggestions])
 
   const toggleSuggestion = (value: string) => {
-    const selected = selectedValues.includes(value)
-    if (!selected && selectedValues.length >= maxSelections) {
+    const currentValues = selectedValuesRef.current
+    const selected = currentValues.includes(value)
+    if (!selected && currentValues.length >= maxSelections) {
       return
     }
 
     const nextValues = selected
-      ? selectedValues.filter((current) => current !== value)
-      : selectedValues.length < maxSelections
-        ? [...selectedValues, value]
-        : selectedValues
+      ? currentValues.filter((current) => current !== value)
+      : [...currentValues, value]
 
+    selectedValuesRef.current = nextValues
     setSelectedValues(nextValues)
     setCurrentInput('')
+    setRejection('')
 
     const nextRawValue = buildRawValue(nextValues, '')
     emitChange(nextRawValue)
     setActiveIndex(0)
     setKeyboardNavigationActive(false)
+    if (!selected) {
+      setRisen(value)
+      window.setTimeout(() => {
+        setRisen((current) => (current === value ? null : current))
+      }, 700)
+    }
   }
 
   useEffect(() => {
@@ -381,6 +447,46 @@ export default function AutocompleteMultiSelectField({
     selectSuggestion(filteredSuggestions[activeIndex].value)
   }
 
+  const commitUnknownText = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || !onCommitText) return
+    if (selectedValuesRef.current.length >= maxSelections) return
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    const requestId = ++requestRef.current
+
+    void onCommitText(trimmed, controller.signal)
+      .then((result) => {
+        if (requestId !== requestRef.current || controller.signal.aborted)
+          return
+        if (!result.ok || result.value !== trimmed) {
+          setRejection(
+            result.ok
+              ? `${trimmed} is not an activity choice.`
+              : result.message,
+          )
+          emitChange(buildRawValue(selectedValuesRef.current, ''))
+          return
+        }
+        if (selectedValuesRef.current.includes(trimmed)) {
+          setCurrentInput('')
+          setRejection('')
+          emitChange(buildRawValue(selectedValuesRef.current, ''))
+          return
+        }
+        if (selectedValuesRef.current.length >= maxSelections) return
+        selectSuggestion(trimmed)
+      })
+      .catch(() => {
+        if (requestId !== requestRef.current || controller.signal.aborted)
+          return
+        setRejection(`${trimmed} is not an activity choice.`)
+        emitChange(buildRawValue(selectedValuesRef.current, ''))
+      })
+  }
+
   const clearValue = () => {
     setSelectedValues([])
     setCurrentInput('')
@@ -417,6 +523,30 @@ export default function AutocompleteMultiSelectField({
         target instanceof HTMLButtonElement
       ) {
         event.preventDefault()
+        const typed = currentInput.trim()
+        if (
+          target instanceof HTMLInputElement &&
+          onCommitText &&
+          typed &&
+          !keyboardNavigationActive
+        ) {
+          const known = findKnownSuggestion(typed, suggestions)
+          if (known) {
+            if (selectedValues.includes(known.value)) {
+              setCurrentInput('')
+              setRejection('')
+              emitChange(buildRawValue(selectedValues, ''))
+              return
+            }
+            if (selectedValues.length >= maxSelections) return
+            selectSuggestion(known.value)
+            return
+          }
+          if (filteredSuggestions.length === 0) {
+            commitUnknownText(typed)
+            return
+          }
+        }
         setKeyboardNavigationActive(true)
         selectActiveSuggestion()
       }
@@ -572,7 +702,7 @@ export default function AutocompleteMultiSelectField({
               <button
                 type="button"
                 aria-label={`Remove ${label}`}
-                className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-2xl border-2 border-[var(--love-900)] bg-[var(--love-700)] px-3 text-sm font-semibold text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]"
+                className={`inline-flex min-h-11 max-w-full items-center gap-2 rounded-2xl border-2 border-[var(--love-900)] bg-[var(--love-700)] px-3 text-sm font-semibold text-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)] ${risen === value ? 'food-chip-join' : ''}`}
                 onClick={() => selectSuggestion(value)}
               >
                 <span className="truncate">{label}</span>
@@ -585,22 +715,30 @@ export default function AutocompleteMultiSelectField({
     ) : null
 
   const clearable = selectedValues.length > 0 || currentInput.length > 0
-  const fieldClassName = menuFollowsChips
-    ? embedFieldInShell(className ?? baseFieldClassName, { clearable })
-    : connectFieldToMenu(className ?? baseFieldClassName, {
-        open: isOpen,
-        clearable,
-      })
-  const joinedShellClassName = menuFollowsChips
-    ? isOpen
-      ? 'overflow-hidden rounded-2xl border-2 border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
-      : 'overflow-clip rounded-2xl border-2 border-[var(--ui-border)] border-b-4 bg-[var(--ui-surface)] focus-within:border-[var(--love-300)] focus-within:ring-4 focus-within:ring-[var(--love-050)]/70'
-    : undefined
+  const rejected = rejection.length > 0
+  const fieldClassName = markRejected(
+    menuFollowsChips
+      ? embedFieldInShell(className ?? baseFieldClassName, { clearable })
+      : connectFieldToMenu(className ?? baseFieldClassName, {
+          open: isOpen,
+          clearable,
+        }),
+    rejected,
+  )
+  const joinedShellClassName = markRejected(
+    menuFollowsChips
+      ? isOpen
+        ? 'overflow-hidden rounded-2xl border-2 border-[var(--ui-border)] bg-[var(--ui-surface)] shadow-[0_18px_30px_-22px_rgba(126,31,61,0.28)]'
+        : 'overflow-clip rounded-2xl border-2 border-[var(--ui-border)] border-b-4 bg-[var(--ui-surface)] focus-within:border-[var(--love-300)] focus-within:ring-4 focus-within:ring-[var(--love-050)]/70'
+      : undefined,
+    rejected,
+  )
 
   return (
     <div
       ref={containerRef}
-      className="w-full min-w-0"
+      className={['w-full min-w-0', rootClassName].filter(Boolean).join(' ')}
+      data-rejected={rejected ? 'true' : undefined}
       onKeyDown={handleKeyDown}
     >
       <div className={joinedShellClassName}>
@@ -659,6 +797,7 @@ export default function AutocompleteMultiSelectField({
             onChange={(event) => {
               const nextInput = event.target.value
               setCurrentInput(nextInput)
+              setRejection('')
               emitChange(buildRawValue(selectedValues, nextInput))
               setActiveIndex(0)
               setKeyboardNavigationActive(false)
@@ -673,6 +812,14 @@ export default function AutocompleteMultiSelectField({
         {selectedChips}
         {menuFollowsChips ? suggestionMenu : null}
       </div>
+      {rejection ? (
+        <p
+          role="status"
+          className="mt-2 text-sm font-semibold text-[var(--ui-danger)]"
+        >
+          {rejection}
+        </p>
+      ) : null}
     </div>
   )
 }
