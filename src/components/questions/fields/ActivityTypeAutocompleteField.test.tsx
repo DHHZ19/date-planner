@@ -84,6 +84,7 @@ describe('ActivityTypeAutocompleteField', () => {
     })
     expect(chip.className).toContain('food-chip-join')
     expect(onChange).toHaveBeenCalledWith('lantern walk')
+    expect(screen.queryByRole('listbox')).toBeNull()
     expect(scrollBy).not.toHaveBeenCalled()
     expect(document.querySelector('.activity-field-shake')).toBeNull()
   })

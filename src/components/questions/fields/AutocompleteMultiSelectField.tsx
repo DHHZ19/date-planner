@@ -478,6 +478,7 @@ export default function AutocompleteMultiSelectField({
         }
         if (selectedValuesRef.current.length >= maxSelections) return
         selectSuggestion(trimmed)
+        setIsOpen(false)
       })
       .catch(() => {
         if (requestId !== requestRef.current || controller.signal.aborted)

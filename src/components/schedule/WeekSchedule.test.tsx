@@ -149,11 +149,18 @@ describe('schedule views', () => {
     await waitFor(() => {
       expect(screen.queryByRole('radio', { name: 'Morning' })).toBeNull()
     })
-    expect(screen.getByRole('radio', { name: 'Evening' })).toBeTruthy()
+    const evening = screen.getByRole('radio', { name: 'Evening' })
+    expect(evening).toHaveProperty('checked', true)
     expect(screen.queryByRole('radio', { name: 'Anytime' })).toBeNull()
     const week = screen.getByRole('region', { name: 'This week' })
     expect(week.querySelectorAll('button')).toHaveLength(1)
     expect(week.textContent).toContain('Sa')
+    expect(week.textContent).toContain('Eve')
+    expect(week.textContent).not.toContain('Now')
+
+    fireEvent.change(vibe, { target: { value: 'rainy and close to home!' } })
+    expect(screen.getAllByRole('radio')).toHaveLength(1)
+    expect(week.querySelectorAll('button')).toHaveLength(1)
     expect(vi.mocked(checkVibeFit)).toHaveBeenCalledOnce()
     expect(vi.mocked(checkVibeFit).mock.calls[0]?.[0].data).not.toHaveProperty(
       'distance',

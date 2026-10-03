@@ -63,15 +63,29 @@ export default function DateTimeField({
   )
   const requestRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
+  const valueRef = useRef(value)
+  valueRef.current = value
   const timeOptions = visibleTimes?.length
     ? DATE_TIME_OPTIONS.filter((option) => visibleTimes.includes(option))
     : DATE_TIME_OPTIONS
+  const shownTime =
+    visibleTimes && visibleTimes.length > 0
+      ? visibleTimes.includes(value ?? '')
+        ? value
+        : visibleTimes[0]
+      : value
 
   useEffect(() => {
     return () => {
       abortRef.current?.abort()
     }
   }, [])
+
+  useEffect(() => {
+    if (phrase.trim().length > 0) return
+    setVisibleDays(undefined)
+    setVisibleTimes(undefined)
+  }, [phrase])
 
   const restoreAll = () => {
     setVisibleDays(undefined)
@@ -115,6 +129,11 @@ export default function DateTimeField({
         }
         setVisibleDays(result.days)
         setVisibleTimes(result.times)
+        const current = valueRef.current
+        const nextTime = result.times.includes(current ?? '')
+          ? current
+          : result.times[0]
+        if (nextTime && nextTime !== current) onChange(nextTime)
       })
       .catch(() => {
         if (requestId !== requestRef.current || controller.signal.aborted)
@@ -147,7 +166,6 @@ export default function DateTimeField({
           if (next.trim().length > 0) return
           abortRef.current?.abort()
           requestRef.current += 1
-          restoreAll()
         }}
         onKeyDown={(event) => {
           if (event.key !== 'Enter') return
@@ -157,14 +175,14 @@ export default function DateTimeField({
       />
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {timeOptions.map((option) => {
-          const selected = value === option
+          const selected = shownTime === option
           const Icon = OPTION_ICONS[option]
 
           return (
             <label
               key={option}
               className={[
-                'cursor-pointer rounded-2xl border-2 px-3 py-3 text-center transition-all duration-150',
+                'cursor-pointer rounded-2xl border-2 px-3 py-3 text-center',
                 'focus-within:ring-2 focus-within:ring-[var(--love-300)] focus-within:ring-offset-2 focus-within:ring-offset-[var(--ui-surface)]/70',
                 selected
                   ? 'border-b-4 border-[var(--love-900)] bg-[var(--love-700)] text-white active:translate-y-[2px] active:border-b-2'
@@ -194,7 +212,7 @@ export default function DateTimeField({
         })}
       </div>
       <WeekSchedule
-        dateTime={value}
+        dateTime={shownTime}
         planDate={planDate}
         includedDates={visibleDays}
         onSelectDay={onPlanDateChange}

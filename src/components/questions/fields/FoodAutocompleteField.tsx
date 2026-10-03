@@ -132,12 +132,20 @@ export default function FoodAutocompleteField({
 }) {
   const fieldRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const tokensRef = useRef<string[]>(tokensFromCsv(defaultValue))
+  const parsedDefault = tokensFromCsv(defaultValue)
+  const tokensRef = useRef<string[]>(parsedDefault)
   const requestRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const keyboardResizeRef = useRef<(() => void) | null>(null)
   const [query, setQuery] = useState('')
-  const [tokens, setTokens] = useState(() => tokensFromCsv(defaultValue))
+  const [tokens, setTokens] = useState(parsedDefault)
+  const sourceKey = `${resetKey}:${defaultValue ?? ''}`
+  const [appliedSource, setAppliedSource] = useState(sourceKey)
+  if (appliedSource !== sourceKey) {
+    setAppliedSource(sourceKey)
+    tokensRef.current = parsedDefault
+    setTokens(parsedDefault)
+  }
   const [rejection, setRejection] = useState('')
   const [lit, setLit] = useState(false)
   const [popped, setPopped] = useState<string | null>(null)
@@ -151,12 +159,6 @@ export default function FoodAutocompleteField({
     setQuery(next)
     onQueryChangeRef.current?.(next)
   }
-
-  useEffect(() => {
-    const next = tokensFromCsv(defaultValue)
-    tokensRef.current = next
-    setTokens(next)
-  }, [defaultValue, resetKey])
 
   useEffect(() => {
     setQuery('')
