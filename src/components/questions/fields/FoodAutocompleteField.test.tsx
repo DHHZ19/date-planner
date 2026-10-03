@@ -50,7 +50,7 @@ function pressEnter() {
 }
 
 describe('FoodAutocompleteField', () => {
-  it('shows suggestion chips only while typing and adds a known match without the model', () => {
+  it('shows suggestion chips only while typing and adds a known match without the guard', () => {
     const onChange = vi.fn()
     renderField({ onChange, placeholder: 'Add another...' })
 

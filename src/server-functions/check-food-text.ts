@@ -12,5 +12,5 @@ export const checkFoodText = createServerFn({ method: 'POST' })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    return foodTextGuardForKey(process.env.OPENAI_API_KEY).check(data.text)
+    return foodTextGuardForKey(process.env.TYPESAFE_API_KEY).check(data.text)
   })
