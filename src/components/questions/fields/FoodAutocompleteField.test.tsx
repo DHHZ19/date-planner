@@ -83,6 +83,22 @@ describe('FoodAutocompleteField', () => {
     expect(vi.mocked(checkFoodText)).not.toHaveBeenCalled()
   })
 
+  it('reads the field text on enter before the query state repaints', () => {
+    const onChange = vi.fn()
+    renderField({ onChange })
+    const field = input()
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      'value',
+    )?.set
+    setter?.call(field, 'French')
+
+    pressEnter()
+
+    expect(onChange).toHaveBeenCalledWith('french_restaurant')
+    expect(vi.mocked(checkFoodText)).not.toHaveBeenCalled()
+  })
+
   it('keeps stored values outside the suggestion list and round-trips commas', () => {
     const onChange = vi.fn()
     renderField({

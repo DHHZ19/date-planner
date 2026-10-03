@@ -223,7 +223,7 @@ export default function FoodAutocompleteField({
   }
 
   const commitQuery = () => {
-    const trimmed = query.trim()
+    const trimmed = (inputRef.current?.value ?? query).trim()
     if (!trimmed) return
     if (tokensRef.current.length >= MAX_FOOD_SELECTIONS) return
     if (trimmed.includes(',')) {
