@@ -289,6 +289,9 @@ describe('FoodAutocompleteField', () => {
     ).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'French' }))
     expect(scrollBy).not.toHaveBeenCalled()
+    expect(input().parentElement?.parentElement?.className).toContain(
+      'food-field',
+    )
     expect(screen.queryByRole('list', { name: 'Food suggestions' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy()
   })

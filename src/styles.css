@@ -408,3 +408,8 @@ a {
     animation: food-chip-join 220ms ease-out;
   }
 }
+
+.food-field,
+.food-field * {
+  overflow-anchor: none;
+}

@@ -281,6 +281,7 @@ export default function FoodAutocompleteField({
   return (
     <div
       ref={fieldRef}
+      className="food-field relative"
       onKeyDown={(event) => {
         if (event.key !== 'Enter' || event.target !== inputRef.current) return
         event.preventDefault()
@@ -330,7 +331,10 @@ export default function FoodAutocompleteField({
       ) : null}
 
       {suggestions.length > 0 ? (
-        <ul aria-label="Food suggestions" className="mt-2 flex flex-wrap gap-2">
+        <ul
+          aria-label="Food suggestions"
+          className="absolute inset-x-0 top-full z-10 mt-2 flex flex-wrap gap-2"
+        >
           {suggestions.map((suggestion) => (
             <li key={suggestion.value}>
               <button
