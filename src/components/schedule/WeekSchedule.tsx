@@ -55,7 +55,7 @@ export function WeekSchedule({
       <p className="px-1 text-xs font-semibold tracking-wide text-[var(--ui-text-muted)] uppercase">
         This week
       </p>
-      <div className="mt-2 grid grid-cols-7 gap-1">
+      <div className="mt-2 flex flex-nowrap items-stretch justify-start gap-1">
         {days.map((date) => {
           const selected = isSameDay(date, selectedDay)
           const current = isSameDay(date, resolvedToday)
@@ -65,10 +65,9 @@ export function WeekSchedule({
               type="button"
               aria-pressed={selected}
               aria-current={current ? 'date' : undefined}
-              style={{ gridColumnStart: date.getDay() + 1 }}
               onClick={() => onSelectDay?.(toIsoDate(date))}
               className={[
-                'flex min-h-14 w-full cursor-pointer flex-col items-center justify-center rounded-xl px-0.5 py-1.5',
+                'flex min-h-14 w-[calc((100%-1.5rem)/7)] shrink-0 cursor-pointer flex-col items-center justify-center rounded-xl px-0.5 py-1.5',
                 'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--love-300)]',
                 selected
                   ? 'bg-[var(--love-700)] text-white'

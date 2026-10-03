@@ -46,15 +46,21 @@ describe('schedule views', () => {
     expect(today.textContent).toContain('2')
     expect(today.textContent).toContain('Eve')
     expect(today.getAttribute('aria-pressed')).toBe('true')
-    expect(today.style.gridColumnStart).toBe('6')
+    expect(today.style.gridColumnStart).toBe('')
     const buttons = screen.getAllByRole('button')
     expect(buttons).toHaveLength(2)
+    expect(buttons[0]).toBe(today)
     expect(buttons.some((button) => button.hasAttribute('disabled'))).toBe(
       false,
     )
     const saturday = screen.getByRole('button', { name: /Sa/ })
-    expect(saturday.style.gridColumnStart).toBe('7')
+    expect(buttons[1]).toBe(saturday)
+    expect(saturday.style.gridColumnStart).toBe('')
+    expect(saturday.textContent).toContain('Sa')
     expect(screen.queryByRole('button', { name: /Su/ })).toBeNull()
+    const row = today.parentElement
+    expect(row?.className).toContain('justify-start')
+    expect(row?.className).not.toContain('grid-cols-7')
 
     fireEvent.click(saturday)
     expect(onSelectDay).toHaveBeenCalledWith('2026-10-03')
@@ -138,7 +144,27 @@ describe('schedule views', () => {
     const days = screen.getAllByRole('button')
     expect(days).toHaveLength(1)
     expect(days[0]?.textContent).toContain('Sa')
-    expect(days[0]?.style.gridColumnStart).toBe('7')
+    expect(days[0]?.style.gridColumnStart).toBe('')
+    expect(days[0]?.parentElement?.className).toContain('justify-start')
+  })
+
+  it('packs a midweek local date from the left with real weekday labels', () => {
+    const wednesday = new Date(2026, 9, 7, 11, 0, 0)
+    expect(wednesday.getDay()).not.toBe(0)
+    render(<WeekSchedule today={wednesday} dateTime="Evening" />)
+
+    const buttons = screen.getAllByRole('button')
+    expect(buttons.map((button) => button.textContent.slice(0, 2))).toEqual([
+      'We',
+      'Th',
+      'Fr',
+      'Sa',
+    ])
+    expect(buttons[0]?.style.gridColumnStart).toBe('')
+    expect(buttons.some((button) => button.hasAttribute('disabled'))).toBe(
+      false,
+    )
+    expect(screen.queryByRole('button', { name: /Su|Mo|Tu/ })).toBeNull()
   })
 
   it('selects today when the stored day is already past', () => {
@@ -188,8 +214,10 @@ describe('schedule views', () => {
     expect(evening).toHaveProperty('checked', true)
     expect(screen.queryByRole('radio', { name: 'Anytime' })).toBeNull()
     const week = screen.getByRole('region', { name: 'This week' })
-    expect(week.querySelectorAll('button')).toHaveLength(1)
-    expect(week.textContent).toContain('Sa')
+    const filteredDays = [...week.querySelectorAll('button')]
+    expect(filteredDays).toHaveLength(1)
+    expect(filteredDays[0]?.textContent).toContain('Sa')
+    expect(filteredDays[0]?.style.gridColumnStart).toBe('')
     expect(week.textContent).toContain('Eve')
     expect(week.textContent).not.toContain('Now')
 
@@ -221,8 +249,10 @@ describe('schedule views', () => {
     expect(screen.getByRole('radio', { name: 'Anytime' })).toBeTruthy()
     expect(screen.getAllByRole('radio')).toHaveLength(6)
     expect(week.querySelectorAll('button')).toHaveLength(2)
-    expect(week.textContent).toContain('Fr')
-    expect(week.textContent).toContain('Sa')
+    const restored = [...week.querySelectorAll('button')]
+    expect(restored[0]?.textContent).toContain('Fr')
+    expect(restored[1]?.textContent).toContain('Sa')
+    expect(restored[0]?.style.gridColumnStart).toBe('')
     expect(week.textContent).not.toContain('Su')
     expect(vibe).toHaveProperty('value', '')
     expect(
