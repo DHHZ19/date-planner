@@ -4,6 +4,7 @@ import {
   plannedDay,
   shortTimeLabel,
   startOfWeek,
+  visibleWeekDates,
   weekDates,
 } from '#/components/schedule/schedule-times'
 
@@ -15,6 +16,19 @@ describe('schedule times', () => {
     expect(days).toHaveLength(7)
     expect(startOfWeek(friday).getDay()).toBe(0)
     expect(days[5]?.getDate()).toBe(2)
+  })
+
+  it('keeps today and later in this week, using the local date', () => {
+    const days = visibleWeekDates(friday)
+    expect(days.map((date) => date.getDate())).toEqual([2, 3])
+    expect(days.map((date) => date.getDay())).toEqual([5, 6])
+    expect(
+      visibleWeekDates(new Date(2026, 9, 3, 9)).map((date) => date.getDate()),
+    ).toEqual([3])
+    const lateFriday = new Date(2026, 9, 2, 23, 30)
+    expect(visibleWeekDates(lateFriday).map((date) => date.getDate())).toEqual([
+      2, 3,
+    ])
   })
 
   it('spaces an evening plan from 6:00 PM', () => {

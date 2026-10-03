@@ -43,6 +43,39 @@ export function weekDates(today: Date) {
   })
 }
 
+export function startOfLocalDay(today: Date) {
+  const start = new Date(today)
+  start.setHours(0, 0, 0, 0)
+  return start
+}
+
+export function visibleWeekDates(today: Date) {
+  const start = startOfLocalDay(today)
+  return weekDates(today).filter((date) => date.getTime() >= start.getTime())
+}
+
+export function shownWeekDates(today: Date, includedDates?: readonly string[]) {
+  const openDays = visibleWeekDates(today)
+  const matched = includedDates?.length
+    ? openDays.filter((date) => includedDates.includes(toIsoDate(date)))
+    : openDays
+  return matched.length > 0 ? matched : openDays
+}
+
+export function shownPlanDay(
+  today: Date,
+  planDate: string | undefined,
+  days: readonly Date[],
+) {
+  const planned = plannedDay(today, planDate)
+  const selected =
+    startOfLocalDay(planned).getTime() < startOfLocalDay(today).getTime()
+      ? startOfLocalDay(today)
+      : planned
+  if (days.some((date) => isSameDay(date, selected))) return selected
+  return days[0] ?? selected
+}
+
 export function toIsoDate(date: Date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')

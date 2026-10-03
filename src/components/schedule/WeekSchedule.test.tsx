@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DateTimeField from '#/components/questions/fields/DateTimeField'
 import { DaySchedule } from '#/components/schedule/DaySchedule'
@@ -20,8 +20,14 @@ vi.mock('#/server-functions/check-vibe-fit', () => ({
 
 const friday = new Date(2026, 9, 2, 15, 0, 0)
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(friday)
+})
+
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
 })
 
 describe('schedule views', () => {
@@ -40,9 +46,17 @@ describe('schedule views', () => {
     expect(today.textContent).toContain('2')
     expect(today.textContent).toContain('Eve')
     expect(today.getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getAllByRole('button')).toHaveLength(7)
+    expect(today.style.gridColumnStart).toBe('6')
+    const buttons = screen.getAllByRole('button')
+    expect(buttons).toHaveLength(2)
+    expect(buttons.some((button) => button.hasAttribute('disabled'))).toBe(
+      false,
+    )
+    const saturday = screen.getByRole('button', { name: /Sa/ })
+    expect(saturday.style.gridColumnStart).toBe('7')
+    expect(screen.queryByRole('button', { name: /Su/ })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Sa/ }))
+    fireEvent.click(saturday)
     expect(onSelectDay).toHaveBeenCalledWith('2026-10-03')
   })
 
@@ -94,6 +108,9 @@ describe('schedule views', () => {
       />,
     )
 
+    expect(
+      screen.getByText('A typed phrase narrows the day and time.'),
+    ).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'Evening' })).toHaveProperty(
       'checked',
       true,
@@ -121,6 +138,24 @@ describe('schedule views', () => {
     const days = screen.getAllByRole('button')
     expect(days).toHaveLength(1)
     expect(days[0]?.textContent).toContain('Sa')
+    expect(days[0]?.style.gridColumnStart).toBe('7')
+  })
+
+  it('selects today when the stored day is already past', () => {
+    const onSelectDay = vi.fn()
+    render(
+      <WeekSchedule
+        today={friday}
+        planDate="2026-09-30"
+        onSelectDay={onSelectDay}
+      />,
+    )
+
+    const today = screen.getByRole('button', { current: 'date' })
+    expect(today.textContent).toContain('Fr')
+    expect(today.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.queryByRole('button', { name: /We/ })).toBeNull()
+    expect(onSelectDay).toHaveBeenCalledWith('2026-10-02')
   })
 
   it('shows only the days and times the vibe check keeps', async () => {
@@ -161,16 +196,38 @@ describe('schedule views', () => {
     fireEvent.change(vibe, { target: { value: 'rainy and close to home!' } })
     expect(screen.getAllByRole('radio')).toHaveLength(1)
     expect(week.querySelectorAll('button')).toHaveLength(1)
+
+    fireEvent.change(vibe, { target: { value: 'ainy and close to home' } })
+    expect(screen.getAllByRole('radio')).toHaveLength(1)
+    expect(week.querySelectorAll('button')).toHaveLength(1)
+    expect(screen.queryByRole('radio', { name: 'Morning' })).toBeNull()
     expect(vi.mocked(checkVibeFit)).toHaveBeenCalledOnce()
     expect(vi.mocked(checkVibeFit).mock.calls[0]?.[0].data).not.toHaveProperty(
       'distance',
     )
 
     fireEvent.change(vibe, { target: { value: '' } })
+    expect(screen.queryByRole('radio', { name: 'Morning' })).toBeNull()
+    expect(week.querySelectorAll('button')).toHaveLength(1)
+    expect(vibe).toHaveProperty('value', '')
 
-    expect(screen.getByRole('radio', { name: 'Morning' })).toBeTruthy()
+    fireEvent.change(vibe, { target: { value: 'ainy and close to home' } })
+    expect(screen.getAllByRole('radio')).toHaveLength(1)
+
+    fireEvent.change(vibe, { target: { value: '' } })
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: 'Morning' })).toBeTruthy()
+    })
     expect(screen.getByRole('radio', { name: 'Anytime' })).toBeTruthy()
-    expect(week.querySelectorAll('button')).toHaveLength(7)
+    expect(screen.getAllByRole('radio')).toHaveLength(6)
+    expect(week.querySelectorAll('button')).toHaveLength(2)
+    expect(week.textContent).toContain('Fr')
+    expect(week.textContent).toContain('Sa')
+    expect(week.textContent).not.toContain('Su')
+    expect(vibe).toHaveProperty('value', '')
+    expect(
+      screen.getByText('A typed phrase narrows the day and time.'),
+    ).toBeTruthy()
   })
 
   it('keeps the full week and every time when the vibe check does not filter', async () => {
@@ -193,10 +250,9 @@ describe('schedule views', () => {
     })
     expect(screen.getByRole('radio', { name: 'Morning' })).toBeTruthy()
     expect(screen.getAllByRole('radio')).toHaveLength(6)
-    expect(
-      screen
-        .getByRole('region', { name: 'This week' })
-        .querySelectorAll('button'),
-    ).toHaveLength(7)
+    const week = screen.getByRole('region', { name: 'This week' })
+    expect(week.querySelectorAll('button')).toHaveLength(2)
+    expect(week.textContent).toContain('Fr')
+    expect(week.textContent).not.toContain('Su')
   })
 })

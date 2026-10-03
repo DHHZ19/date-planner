@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import {
   isSameDay,
-  plannedDay,
+  parseIsoDate,
   shortTimeLabel,
+  shownPlanDay,
+  shownWeekDates,
+  startOfLocalDay,
   toIsoDate,
   weekdayLabel,
-  weekDates,
 } from '#/components/schedule/schedule-times'
 
 export function WeekSchedule({
@@ -27,14 +29,22 @@ export function WeekSchedule({
     setResolvedToday(today ?? new Date())
   }, [today])
 
+  useEffect(() => {
+    if (!resolvedToday || !onSelectDay) return
+    const openDays = shownWeekDates(resolvedToday, includedDates)
+    const shown = shownPlanDay(resolvedToday, planDate, openDays)
+    const next = toIsoDate(startOfLocalDay(shown))
+    const parsed = planDate ? parseIsoDate(planDate) : null
+    if (parsed && isSameDay(parsed, shown)) return
+    if (!parsed && isSameDay(resolvedToday, shown)) return
+    onSelectDay(next)
+  }, [resolvedToday, planDate, includedDates, onSelectDay])
+
   if (!resolvedToday) return null
 
   const mark = shortTimeLabel(dateTime)
-  const selectedDay = plannedDay(resolvedToday, planDate)
-  const days = weekDates(resolvedToday).filter((date) => {
-    if (!includedDates || includedDates.length === 0) return true
-    return includedDates.includes(toIsoDate(date))
-  })
+  const days = shownWeekDates(resolvedToday, includedDates)
+  const selectedDay = shownPlanDay(resolvedToday, planDate, days)
 
   return (
     <section
@@ -55,6 +65,7 @@ export function WeekSchedule({
               type="button"
               aria-pressed={selected}
               aria-current={current ? 'date' : undefined}
+              style={{ gridColumnStart: date.getDay() + 1 }}
               onClick={() => onSelectDay?.(toIsoDate(date))}
               className={[
                 'flex min-h-14 w-full cursor-pointer flex-col items-center justify-center rounded-xl px-0.5 py-1.5',

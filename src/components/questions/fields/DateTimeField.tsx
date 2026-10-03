@@ -3,11 +3,14 @@ import { WeekSchedule } from '#/components/schedule/WeekSchedule'
 import {
   fullWeekdayName,
   toIsoDate,
-  weekDates,
+  visibleWeekDates,
 } from '#/components/schedule/schedule-times'
 import { typesafeFixtureRequested } from '#/lib/typesafe-fixture'
 import { checkVibeFit } from '#/server-functions/check-vibe-fit'
-import { baseFieldClassName } from '#/components/questions/fields/field-classes'
+import {
+  baseFieldClassName,
+  fieldHintClassName,
+} from '#/components/questions/fields/field-classes'
 import type { ElementType } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -27,6 +30,8 @@ const OPTION_LABELS: Record<(typeof DATE_TIME_OPTIONS)[number], string> = {
   'Late Night': 'Late Night',
   Anytime: 'Anytime',
 }
+
+const EMPTY_FIELD_HOLD_MS = 400
 
 const OPTION_ICONS: Record<(typeof DATE_TIME_OPTIONS)[number], ElementType> = {
   Now: Clock,
@@ -64,7 +69,9 @@ export default function DateTimeField({
   const requestRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const valueRef = useRef(value)
+  const phraseRef = useRef(phrase)
   valueRef.current = value
+  phraseRef.current = phrase
   const timeOptions = visibleTimes?.length
     ? DATE_TIME_OPTIONS.filter((option) => visibleTimes.includes(option))
     : DATE_TIME_OPTIONS
@@ -83,8 +90,11 @@ export default function DateTimeField({
 
   useEffect(() => {
     if (phrase.trim().length > 0) return
-    setVisibleDays(undefined)
-    setVisibleTimes(undefined)
+    const timer = window.setTimeout(() => {
+      setVisibleDays(undefined)
+      setVisibleTimes(undefined)
+    }, EMPTY_FIELD_HOLD_MS)
+    return () => window.clearTimeout(timer)
   }, [phrase])
 
   const restoreAll = () => {
@@ -97,12 +107,11 @@ export default function DateTimeField({
     if (!trimmed) {
       abortRef.current?.abort()
       requestRef.current += 1
-      restoreAll()
       return
     }
 
     const today = new Date()
-    const days = weekDates(today).map((date) => ({
+    const days = visibleWeekDates(today).map((date) => ({
       key: toIsoDate(date),
       label: fullWeekdayName(date),
     }))
@@ -123,6 +132,7 @@ export default function DateTimeField({
       .then((result) => {
         if (requestId !== requestRef.current || controller.signal.aborted)
           return
+        if (!phraseRef.current.trim()) return
         if (result.status === 'all') {
           restoreAll()
           return
@@ -147,10 +157,13 @@ export default function DateTimeField({
       <legend className="sr-only">Select a time of day</legend>
       <label
         htmlFor={`${id}-vibe`}
-        className="mb-2 block text-sm font-semibold text-[var(--love-700)]"
+        className="block text-sm font-semibold text-[var(--love-700)]"
       >
         Vibe
       </label>
+      <p id={`${id}-vibe-note`} className={`${fieldHintClassName} mb-2`}>
+        A typed phrase narrows the day and time.
+      </p>
       <input
         id={`${id}-vibe`}
         type="text"
@@ -158,7 +171,7 @@ export default function DateTimeField({
         maxLength={80}
         enterKeyHint="done"
         autoComplete="off"
-        placeholder="rainy and close to home"
+        aria-describedby={`${id}-vibe-note`}
         className={`${baseFieldClassName} mb-3`}
         onChange={(event) => {
           const next = event.target.value
