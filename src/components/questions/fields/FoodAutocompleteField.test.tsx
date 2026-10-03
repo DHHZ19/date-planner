@@ -65,8 +65,9 @@ describe('FoodAutocompleteField', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'French' }))
 
+    const joined = screen.getByRole('button', { name: 'Remove French' })
     expect(onChange).toHaveBeenCalledWith('french_restaurant')
-    expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy()
+    expect(joined.className).toContain('food-chip-join')
     expect(vi.mocked(checkFoodText)).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'French' })).toBeNull()
   })
@@ -159,6 +160,7 @@ describe('FoodAutocompleteField', () => {
       screen.queryByRole('button', { name: 'Remove zzzznotfood' }),
     ).toBeNull()
     expect(screen.getByRole('button', { name: 'Remove Chinese' })).toBeTruthy()
+    expect(document.querySelector('.food-field-shake')).toBeNull()
     expect(vi.mocked(checkFoodText)).toHaveBeenCalledOnce()
   })
 
@@ -228,16 +230,22 @@ describe('FoodAutocompleteField', () => {
     expect(onChange).toHaveBeenCalledOnce()
   })
 
-  it('scrolls the shell above the keyboard on focus', () => {
+  it('scrolls once when the keyboard opens and does not scroll when a chip is added', () => {
+    const listeners = new Set<() => void>()
+    const viewport = {
+      height: 360,
+      offsetTop: 0,
+      addEventListener: (_type: string, listener: () => void) => {
+        listeners.add(listener)
+      },
+      removeEventListener: (_type: string, listener: () => void) => {
+        listeners.delete(listener)
+      },
+    }
     const scrollBy = vi.spyOn(window, 'scrollBy').mockImplementation(() => {})
     Object.defineProperty(window, 'visualViewport', {
       configurable: true,
-      value: {
-        height: 360,
-        offsetTop: 0,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-      },
+      value: viewport,
     })
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       top: 500,
@@ -253,9 +261,35 @@ describe('FoodAutocompleteField', () => {
       },
     })
 
-    renderField()
-    fireEvent.focus(input())
+    renderField({ defaultValue: 'chinese_restaurant' })
+    expect(listeners.size).toBe(0)
 
+    fireEvent.focus(input())
+    expect(scrollBy).toHaveBeenCalledTimes(1)
     expect(scrollBy).toHaveBeenCalledWith(0, 488)
+    expect(listeners.size).toBe(1)
+
+    viewport.height = 360
+    listeners.forEach((listener) => listener())
+    expect(scrollBy).toHaveBeenCalledTimes(1)
+    expect(listeners.size).toBe(1)
+
+    viewport.height = 300
+    listeners.forEach((listener) => listener())
+    expect(scrollBy).toHaveBeenCalledTimes(2)
+    expect(listeners.size).toBe(0)
+
+    scrollBy.mockClear()
+    typeQuery('fren')
+    const selected = screen.getByRole('list', { name: 'Selected food' })
+    const suggestions = screen.getByRole('list', { name: 'Food suggestions' })
+    expect(
+      selected.compareDocumentPosition(suggestions) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'French' }))
+    expect(scrollBy).not.toHaveBeenCalled()
+    expect(screen.queryByRole('list', { name: 'Food suggestions' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy()
   })
 })

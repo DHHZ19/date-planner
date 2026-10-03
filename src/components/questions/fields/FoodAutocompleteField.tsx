@@ -127,10 +127,10 @@ export default function FoodAutocompleteField({
   const tokensRef = useRef<string[]>(tokensFromCsv(defaultValue))
   const requestRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
+  const keyboardResizeRef = useRef<(() => void) | null>(null)
   const [query, setQuery] = useState('')
   const [tokens, setTokens] = useState(() => tokensFromCsv(defaultValue))
   const [rejection, setRejection] = useState('')
-  const [shaking, setShaking] = useState(false)
   const [lit, setLit] = useState(false)
   const [popped, setPopped] = useState<string | null>(null)
   const capId = `${id}-cap`
@@ -148,23 +148,18 @@ export default function FoodAutocompleteField({
     setQuery('')
   }, [resetKey])
 
-  useEffect(() => {
+  const detachKeyboardScroll = () => {
     const viewport = window.visualViewport
-    if (!viewport) return
-
-    const onResize = () => {
-      const field = fieldRef.current
-      if (field && document.activeElement === inputRef.current) {
-        scrollFieldAboveKeyboard(field)
-      }
-    }
-
-    viewport.addEventListener('resize', onResize)
-    return () => viewport.removeEventListener('resize', onResize)
-  }, [])
+    const onResize = keyboardResizeRef.current
+    if (viewport && onResize) viewport.removeEventListener('resize', onResize)
+    keyboardResizeRef.current = null
+  }
 
   useEffect(() => {
-    return () => abortRef.current?.abort()
+    return () => {
+      abortRef.current?.abort()
+      detachKeyboardScroll()
+    }
   }, [])
 
   const keepFieldInView = () => {
@@ -172,19 +167,31 @@ export default function FoodAutocompleteField({
     if (field) scrollFieldAboveKeyboard(field)
   }
 
+  const armKeyboardScroll = () => {
+    const viewport = window.visualViewport
+    if (!viewport) return
+    detachKeyboardScroll()
+    const openHeight = viewport.height
+    const onResize = () => {
+      if (viewport.height >= openHeight) return
+      detachKeyboardScroll()
+      keepFieldInView()
+    }
+    keyboardResizeRef.current = onResize
+    viewport.addEventListener('resize', onResize)
+  }
+
   const lightUp = (token: string) => {
     setLit(true)
     setPopped(token)
     window.setTimeout(() => {
-      setLit(false)
       setPopped((current) => (current === token ? null : current))
-    }, 420)
+    }, 250)
+    window.setTimeout(() => setLit(false), 400)
   }
 
   const showReject = (text: string) => {
     setRejection(`${text.trim()} is not a food choice.`)
-    setShaking(true)
-    window.setTimeout(() => setShaking(false), 520)
   }
 
   const commitTokens = (next: string[], added: string) => {
@@ -274,7 +281,6 @@ export default function FoodAutocompleteField({
   return (
     <div
       ref={fieldRef}
-      className={shaking ? 'food-field-shake' : undefined}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' || event.target !== inputRef.current) return
         event.preventDefault()
@@ -295,12 +301,33 @@ export default function FoodAutocompleteField({
           aria-describedby={describedByIds}
           autoComplete="off"
           enterKeyHint="done"
-          onFocus={keepFieldInView}
+          onFocus={() => {
+            keepFieldInView()
+            armKeyboardScroll()
+          }}
           onChange={(event) => setQuery(event.target.value)}
           className="w-full bg-transparent text-base font-medium text-[var(--ui-text)] outline-none placeholder:font-medium placeholder:text-[var(--ui-text-muted)]"
         />
         <input type="hidden" name={name} value={tokens.join(',')} />
       </div>
+
+      {tokens.length > 0 ? (
+        <ul aria-label="Selected food" className="mt-2 flex flex-wrap gap-2">
+          {tokens.map((token) => (
+            <li key={token}>
+              <button
+                type="button"
+                className={`${committedChipClassName} ${popped === token ? 'food-chip-join' : ''}`}
+                aria-label={`Remove ${labelFor(token)}`}
+                onClick={() => removeToken(token)}
+              >
+                <span className="truncate">{labelFor(token)}</span>
+                <span aria-hidden="true">×</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {suggestions.length > 0 ? (
         <ul aria-label="Food suggestions" className="mt-2 flex flex-wrap gap-2">
@@ -313,24 +340,6 @@ export default function FoodAutocompleteField({
                 onClick={() => addSuggestion(suggestion)}
               >
                 {suggestion.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {tokens.length > 0 ? (
-        <ul aria-label="Selected food" className="mt-2 flex flex-wrap gap-2">
-          {tokens.map((token) => (
-            <li key={token}>
-              <button
-                type="button"
-                className={`${committedChipClassName} ${popped === token ? 'food-chip-pop' : ''}`}
-                aria-label={`Remove ${labelFor(token)}`}
-                onClick={() => removeToken(token)}
-              >
-                <span className="truncate">{labelFor(token)}</span>
-                <span aria-hidden="true">×</span>
               </button>
             </li>
           ))}
