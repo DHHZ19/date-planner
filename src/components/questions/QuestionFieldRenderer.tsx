@@ -23,6 +23,8 @@ export default function QuestionFieldRenderer({
   activitySearchMode,
   onChange,
   onToggleCsvValue,
+  planDate,
+  onPlanDateChange,
 }: {
   question: Question
   inputId: string
@@ -34,6 +36,8 @@ export default function QuestionFieldRenderer({
   activitySearchMode?: string
   onChange: (value: string | undefined) => void
   onToggleCsvValue: (value: string) => void
+  planDate?: string
+  onPlanDateChange?: (value: string) => void
 }) {
   const fieldConfig = QUESTION_FIELD_CONFIGS[question.promptKey]
 
@@ -75,8 +79,10 @@ export default function QuestionFieldRenderer({
         id={inputId}
         name={inputName}
         value={value}
+        planDate={planDate}
         describedBy={describedBy}
         onChange={onChange}
+        onPlanDateChange={onPlanDateChange}
       />
     )
   }

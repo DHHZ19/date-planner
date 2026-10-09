@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { useKeyboardObstruction } from '#/lib/keyboard-obstruction'
 import type { AnswerKey, QuestionSection } from '#/types/index-route.types'
 
 type PaginationButtonsProps = {
@@ -28,6 +29,7 @@ const PaginationButtons = ({
   onValidationErrorChange,
 }: PaginationButtonsProps) => {
   const navigate = useNavigate()
+  const keyboardObstructsForm = useKeyboardObstruction()
   const currentStep = currentSection.page
   const isLastStep = currentStep === lastPage
 
@@ -105,6 +107,7 @@ const PaginationButtons = ({
     <div
       className={[
         'z-50',
+        keyboardObstructsForm ? 'hidden' : '',
         'fixed inset-x-0 bottom-0 border-t-2 border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-10px_40px_rgba(126,31,61,0.08)] backdrop-blur-sm',
       ].join(' ')}
     >

@@ -1,5 +1,11 @@
 import { DATE_TIME_OPTIONS } from '#/components/questions/question-config'
+import { WeekSchedule } from '#/components/schedule/WeekSchedule'
+import {
+  startOfLocalDay,
+  toIsoDate,
+} from '#/components/schedule/schedule-times'
 import type { ElementType } from 'react'
+import { useEffect } from 'react'
 import {
   Clock,
   Infinity as InfinityIcon,
@@ -31,15 +37,24 @@ export default function DateTimeField({
   id,
   name,
   value,
+  planDate,
   describedBy,
   onChange,
+  onPlanDateChange,
 }: {
   id: string
   name: string
   value: string | undefined
+  planDate?: string
   describedBy?: string
   onChange: (value: string | undefined) => void
+  onPlanDateChange?: (value: string) => void
 }) {
+  useEffect(() => {
+    if (!onPlanDateChange || !value || value === 'Now' || planDate) return
+    onPlanDateChange(toIsoDate(startOfLocalDay(new Date())))
+  }, [onPlanDateChange, planDate, value])
+
   return (
     <fieldset id={id} aria-describedby={describedBy} className="mt-1">
       <legend className="sr-only">Select a time of day</legend>
@@ -52,7 +67,7 @@ export default function DateTimeField({
             <label
               key={option}
               className={[
-                'cursor-pointer rounded-2xl border-2 px-3 py-3 text-center transition-all duration-150',
+                'cursor-pointer rounded-2xl border-2 px-3 py-3 text-center',
                 'focus-within:ring-2 focus-within:ring-[var(--love-300)] focus-within:ring-offset-2 focus-within:ring-offset-[var(--ui-surface)]/70',
                 selected
                   ? 'border-b-4 border-[var(--love-900)] bg-[var(--love-700)] text-white active:translate-y-[2px] active:border-b-2'
@@ -81,6 +96,11 @@ export default function DateTimeField({
           )
         })}
       </div>
+      <WeekSchedule
+        dateTime={value}
+        planDate={planDate}
+        onSelectDay={onPlanDateChange}
+      />
     </fieldset>
   )
 }

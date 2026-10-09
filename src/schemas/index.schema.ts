@@ -9,6 +9,19 @@ export const dateTimeSchema = z.enum([
   'Anytime',
 ])
 
+const planDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const [year, month, day] = value.split('-').map(Number)
+    const date = new Date(year, month - 1, day)
+    return (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    )
+  })
+
 export const priceLevelSchema = z.enum([
   'PRICE_LEVEL_INEXPENSIVE',
   'PRICE_LEVEL_MODERATE',
@@ -138,6 +151,10 @@ export const searchStateSchema = z.object({
   dateTime: z.preprocess(
     (value) => (value === '' ? undefined : value),
     dateTimeSchema.catch('Now'),
+  ),
+  planDate: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    planDateSchema.optional().catch(undefined),
   ),
   startingArea: optionalTextSearchParamSchema.catch(undefined),
   duration: optionalTextSearchParamSchema.catch(undefined),

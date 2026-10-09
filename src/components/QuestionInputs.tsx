@@ -22,8 +22,13 @@ export const QuestionInputs = ({
   const [validationError, setValidationError] = useState<string | null>(null)
   const [showSuccessOverlay, setShowSuccessOverlay] = useState(false)
   const [isSubmitArmed, setIsSubmitArmed] = useState(false)
-  const { search, updateField, getCsvFieldValues, toggleCsvFieldValue } =
-    useQuestionSearchState()
+  const {
+    search,
+    updateField,
+    getCsvFieldValues,
+    toggleCsvFieldValue,
+    setPlanDate,
+  } = useQuestionSearchState()
   const { isSubmitting, submitError, submitDatePlan } = useDatePlanSubmission()
   const isLastPage = currentSection.page === lastPage
 
@@ -139,6 +144,8 @@ export const QuestionInputs = ({
         isSubmitArmed={isSubmitArmed}
         onLocationErrorChange={setLocationError}
         onValidationErrorChange={setValidationError}
+        planDate={search.planDate}
+        onPlanDateChange={setPlanDate}
       />
     </>
   )
