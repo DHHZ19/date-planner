@@ -128,7 +128,10 @@ describe('schedule views', () => {
       (button) => button.getAttribute('aria-pressed') === 'false',
     )
     fireEvent.click(otherDay!)
-    expect(onPlanDateChange).toHaveBeenCalledOnce()
+    expect(onPlanDateChange).toHaveBeenNthCalledWith(1, '2026-10-02')
+    const picked = onPlanDateChange.mock.calls.at(-1)?.[0] as string
+    expect(picked).not.toBe('2026-10-02')
+    expect(otherDay?.textContent).toContain(String(Number(picked.slice(-2))))
   })
 
   it('packs a midweek local date from the left with real weekday labels', () => {

@@ -1,6 +1,11 @@
 import { DATE_TIME_OPTIONS } from '#/components/questions/question-config'
 import { WeekSchedule } from '#/components/schedule/WeekSchedule'
+import {
+  startOfLocalDay,
+  toIsoDate,
+} from '#/components/schedule/schedule-times'
 import type { ElementType } from 'react'
+import { useEffect } from 'react'
 import {
   Clock,
   Infinity as InfinityIcon,
@@ -45,6 +50,11 @@ export default function DateTimeField({
   onChange: (value: string | undefined) => void
   onPlanDateChange?: (value: string) => void
 }) {
+  useEffect(() => {
+    if (!onPlanDateChange || !value || value === 'Now' || planDate) return
+    onPlanDateChange(toIsoDate(startOfLocalDay(new Date())))
+  }, [onPlanDateChange, planDate, value])
+
   return (
     <fieldset id={id} aria-describedby={describedBy} className="mt-1">
       <legend className="sr-only">Select a time of day</legend>

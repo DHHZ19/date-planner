@@ -87,11 +87,20 @@ export function suggestionListMaxPx({
   return Math.min(maxHeight, available)
 }
 
+const TEXT_ENTRY_TYPES = new Set([
+  'text',
+  'search',
+  'email',
+  'tel',
+  'url',
+  'password',
+  'number',
+])
+
 function isEditingElement(element: Element | null) {
-  return (
-    element instanceof HTMLInputElement ||
-    element instanceof HTMLTextAreaElement
-  )
+  if (element instanceof HTMLTextAreaElement) return true
+  if (!(element instanceof HTMLInputElement)) return false
+  return TEXT_ENTRY_TYPES.has(element.type)
 }
 
 function readKeyboardInset() {
