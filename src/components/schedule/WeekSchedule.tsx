@@ -14,13 +14,11 @@ export function WeekSchedule({
   today,
   dateTime,
   planDate,
-  includedDates,
   onSelectDay,
 }: {
   today?: Date
   dateTime?: string
   planDate?: string
-  includedDates?: readonly string[]
   onSelectDay?: (isoDate: string) => void
 }) {
   const [resolvedToday, setResolvedToday] = useState<Date | null>(today ?? null)
@@ -31,29 +29,29 @@ export function WeekSchedule({
 
   useEffect(() => {
     if (!resolvedToday || !onSelectDay) return
-    const openDays = shownWeekDates(resolvedToday, includedDates)
+    const openDays = shownWeekDates(resolvedToday)
     const shown = shownPlanDay(resolvedToday, planDate, openDays)
     const next = toIsoDate(startOfLocalDay(shown))
     const parsed = planDate ? parseIsoDate(planDate) : null
     if (parsed && isSameDay(parsed, shown)) return
     if (!parsed && isSameDay(resolvedToday, shown)) return
     onSelectDay(next)
-  }, [resolvedToday, planDate, includedDates, onSelectDay])
+  }, [resolvedToday, planDate, onSelectDay])
 
   if (!resolvedToday) return null
 
   const mark = shortTimeLabel(dateTime)
-  const days = shownWeekDates(resolvedToday, includedDates)
+  const days = shownWeekDates(resolvedToday)
   const selectedDay = shownPlanDay(resolvedToday, planDate, days)
 
   return (
     <section
       data-week-schedule
-      aria-label="This week"
+      aria-label="Next 7 days"
       className="mt-3 rounded-2xl border-2 border-[var(--ui-border)] bg-[var(--ui-surface)] px-2 py-3"
     >
       <p className="px-1 text-xs font-semibold tracking-wide text-[var(--ui-text-muted)] uppercase">
-        This week
+        Next 7 days
       </p>
       <div className="mt-2 flex flex-nowrap items-stretch justify-start gap-1">
         {days.map((date) => {

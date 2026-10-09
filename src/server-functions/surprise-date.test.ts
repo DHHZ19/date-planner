@@ -7,12 +7,11 @@ import {
   planSurpriseDate,
   SURPRISE_STATE,
 } from '#/server-functions/surprise-date'
-import {
-  typeSafeClientForKey
-  
-  
+import { typeSafeClientForKey } from '#/server-functions/typesafe-client'
+import type {
+  TypeSafeClient,
+  TypeSafeResult,
 } from '#/server-functions/typesafe-client'
-import type {TypeSafeClient, TypeSafeResult} from '#/server-functions/typesafe-client';
 
 afterEach(() => {
   vi.restoreAllMocks()

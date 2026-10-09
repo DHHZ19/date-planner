@@ -4,11 +4,8 @@ import {
   ACTIVITY_QUESTION,
   judgeActivityText,
 } from '#/server-functions/activity-text'
-import {
-  typeSafeClientForKey
-  
-} from '#/server-functions/typesafe-client'
-import type {TypeSafeClient} from '#/server-functions/typesafe-client';
+import { typeSafeClientForKey } from '#/server-functions/typesafe-client'
+import type { TypeSafeClient } from '#/server-functions/typesafe-client'
 
 afterEach(() => {
   vi.restoreAllMocks()

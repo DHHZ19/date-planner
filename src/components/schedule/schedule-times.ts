@@ -13,20 +13,6 @@ export function weekdayLabel(date: Date) {
   return WEEKDAY_LABELS[date.getDay()] ?? 'Su'
 }
 
-const FULL_WEEKDAY_NAMES = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-] as const
-
-export function fullWeekdayName(date: Date) {
-  return FULL_WEEKDAY_NAMES[date.getDay()] ?? 'Sunday'
-}
-
 export function startOfWeek(today: Date) {
   const start = new Date(today)
   start.setHours(0, 0, 0, 0)
@@ -58,12 +44,8 @@ export function visibleWeekDates(today: Date) {
   })
 }
 
-export function shownWeekDates(today: Date, includedDates?: readonly string[]) {
-  const openDays = visibleWeekDates(today)
-  const matched = includedDates?.length
-    ? openDays.filter((date) => includedDates.includes(toIsoDate(date)))
-    : openDays
-  return matched.length > 0 ? matched : openDays
+export function shownWeekDates(today: Date) {
+  return visibleWeekDates(today)
 }
 
 export function shownPlanDay(

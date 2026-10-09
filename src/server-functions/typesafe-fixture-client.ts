@@ -23,19 +23,9 @@ function fixtureChoice(key: string, question: TypeSafeQuestion) {
   return Object.keys(question.criteria)[0] ?? null
 }
 
-function fixtureNoul(state: string, instructions: string) {
+function fixtureNoul(state: string) {
   const phrase = state.trim().toLowerCase()
-  const hint = instructions.toLowerCase()
   if (!phrase || phrase.includes('zzzz')) return 0.1
-  if (hint.includes('fit the phrase')) {
-    if (
-      phrase.includes('rainy') &&
-      (hint.includes('saturday') || hint.includes('evening'))
-    ) {
-      return 0.91
-    }
-    return 0.2
-  }
   return 0.91
 }
 
@@ -55,7 +45,7 @@ export function fixtureTypeSafeClient(): TypeSafeClient {
         }
         answers[key] = {
           type: 'noul',
-          noul: fixtureNoul(state, question.instructions),
+          noul: fixtureNoul(state),
         }
       }
       return Promise.resolve({ status: 'ok', answers })

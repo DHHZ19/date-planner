@@ -1,9 +1,6 @@
 import { ACTIVITY_PHRASE_MAX } from '#/lib/typesafe'
-import {
-  acceptedNoul
-  
-} from '#/server-functions/typesafe-client'
-import type {TypeSafeClient} from '#/server-functions/typesafe-client';
+import { acceptedNoul } from '#/server-functions/typesafe-client'
+import type { TypeSafeClient } from '#/server-functions/typesafe-client'
 
 export const ACTIVITY_QUESTION = 'Is this a real outing or activity, not junk?'
 

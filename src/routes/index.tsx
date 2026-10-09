@@ -11,8 +11,14 @@ import { hasLatestPlanInStorage } from '#/lib/date-plan'
 import { searchStateSchema } from '#/schemas/index.schema'
 
 export const Route = createFileRoute('/')({
-  validateSearch: (search: Record<string, unknown>) =>
-    searchStateSchema.parse(search),
+  validateSearch: (search: Record<string, unknown>) => {
+    if (!Object.prototype.hasOwnProperty.call(search, 'vibe')) {
+      return searchStateSchema.parse(search)
+    }
+    const rest = { ...search }
+    delete rest.vibe
+    return searchStateSchema.parse(rest)
+  },
   component: App,
 })
 
